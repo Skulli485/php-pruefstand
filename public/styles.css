@@ -334,6 +334,42 @@ select {
     white-space: normal;
 }
 
+.tag-section {
+    margin-block: 2.5rem;
+}
+
+.tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    margin: 0;
+    padding: 0;
+    border-block: 1px solid var(--line-soft);
+    list-style: none;
+}
+
+.tag-list li {
+    display: grid;
+    gap: .15rem;
+    min-width: 10rem;
+    padding: .9rem 1.2rem;
+    border-right: 1px solid var(--line-soft);
+}
+
+.tag-list span {
+    color: var(--accent);
+    font-family: var(--condensed);
+    font-size: 1.1rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.tag-list small,
+.muted-text {
+    color: var(--muted);
+    font-family: var(--mono);
+}
+
 .author-box {
     margin: 3rem 0;
     padding-left: 1.5rem;

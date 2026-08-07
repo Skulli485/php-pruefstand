@@ -183,12 +183,39 @@ function show_post(PDO $pdo, array $parameters): void
         return;
     }
 
+    $tags = execute_statement(
+        $pdo,
+        'SELECT t.id, t.name, t.slug
+        FROM posts p
+        JOIN post_tag pt ON pt.post_id = p.id
+        JOIN tags t ON t.id = pt.tag_id
+        WHERE p.id = :post_id
+        ORDER BY t.name',
+        ['post_id' => $id]
+    )->fetchAll();
+
     page_start((string) $post['title'], '/beitraege');
     ?>
     <article class="post-detail">
         <p class="detail-number">Beitrag <?= (int) $post['id'] ?></p>
         <h1><?= e($post['title']) ?></h1>
         <p class="post-body"><?= nl2br(e($post['body'])) ?></p>
+
+        <section class="tag-section" aria-labelledby="tag-heading">
+            <h2 id="tag-heading">Schlagwörter</h2>
+            <?php if ($tags === []): ?>
+                <p class="muted-text">Noch keine Schlagwörter zugeordnet.</p>
+            <?php else: ?>
+                <ul class="tag-list">
+                    <?php foreach ($tags as $tag): ?>
+                        <li>
+                            <span><?= e($tag['name']) ?></span>
+                            <small><?= e($tag['slug']) ?></small>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php endif; ?>
+        </section>
 
         <aside class="author-box">
             <h2>Autor</h2>
