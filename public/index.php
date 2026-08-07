@@ -11,8 +11,13 @@ $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
 $path = parse_url($requestUri, PHP_URL_PATH);
 $path = is_string($path) && $path !== '' ? $path : '/';
 
-if (PHP_SAPI === 'cli-server' && $path === '/styles.css') {
-    return false;
+if (PHP_SAPI === 'cli-server') {
+    $isPublicAsset = $path === '/styles.css'
+        || preg_match('#^/images/[a-zA-Z0-9._/-]+$#', $path) === 1;
+
+    if ($isPublicAsset && is_file(__DIR__ . $path)) {
+        return false;
+    }
 }
 
 $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');

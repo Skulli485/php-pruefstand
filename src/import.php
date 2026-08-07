@@ -259,3 +259,108 @@ function import_episodes(PDO $pdo, array $showIds): array
         'skipped' => $skippedEpisodes,
     ];
 }
+
+function seed_nordlicht(PDO $pdo): array
+{
+    $show = execute_statement(
+        $pdo,
+        'SELECT id FROM shows
+        WHERE external_id IS NULL AND name = :name
+        ORDER BY id
+        LIMIT 1',
+        ['name' => 'Nordlicht']
+    )->fetch();
+
+    $pdo->beginTransaction();
+
+    try {
+        if ($show === false) {
+            $showStatement = $pdo->prepare(
+                'INSERT INTO shows (
+                    name, language, status, premiered, summary, image_url
+                ) VALUES (
+                    :name, :language, :status, :premiered, :summary, :image_url
+                )'
+            );
+            $showStatement->execute([
+                'name' => 'Nordlicht',
+                'language' => 'German',
+                'status' => 'Running',
+                'premiered' => '2026-08-07',
+                'summary' => 'Eine deutschsprachige Mysteryserie über ein rätselhaftes Signal aus dem Norden.',
+                'image_url' => '/images/nordlicht-poster.png',
+            ]);
+            $showId = (int) $pdo->lastInsertId();
+        } else {
+            $showId = (int) $show['id'];
+            execute_statement(
+                $pdo,
+                'UPDATE shows SET image_url = :image_url WHERE id = :id',
+                ['image_url' => '/images/nordlicht-poster.png', 'id' => $showId]
+            );
+        }
+
+        execute_statement(
+            $pdo,
+            'INSERT INTO genres (name, slug)
+            VALUES (:name, :slug)
+            ON CONFLICT(name) DO UPDATE SET slug = excluded.slug',
+            ['name' => 'Drama', 'slug' => 'drama']
+        );
+        $genreId = (int) execute_statement(
+            $pdo,
+            'SELECT id FROM genres WHERE name = :name',
+            ['name' => 'Drama']
+        )->fetchColumn();
+        execute_statement(
+            $pdo,
+            'INSERT OR IGNORE INTO show_genre (show_id, genre_id)
+            VALUES (:show_id, :genre_id)',
+            ['show_id' => $showId, 'genre_id' => $genreId]
+        );
+
+        $episodeStatement = $pdo->prepare(
+            'INSERT INTO episodes (
+                external_id, show_id, name, season, number, airdate, runtime, summary
+            ) VALUES (
+                :external_id, :show_id, :name, :season, :number, :airdate, :runtime, :summary
+            ) ON CONFLICT(external_id) DO UPDATE SET
+                show_id = excluded.show_id,
+                name = excluded.name,
+                season = excluded.season,
+                number = excluded.number,
+                airdate = excluded.airdate,
+                runtime = excluded.runtime,
+                summary = excluded.summary'
+        );
+        $episodes = [
+            [-1001, 'Das Signal', '2026-08-07', 48, 'Ein unbekanntes Funksignal führt die Ermittlerin Liv bis an die sturmumtoste Küste.'],
+            [-1002, 'Weiße Nacht', '2026-08-14', 46, 'Während die Nacht nicht dunkel wird, taucht eine zweite Nachricht aus dem Rauschen auf.'],
+            [-1003, 'Unter dem Eis', '2026-08-21', 51, 'Eine Spur im gefrorenen Fjord verbindet das Signal mit einem alten Forschungsprojekt.'],
+            [-1004, 'Die Frequenz', '2026-08-28', 49, 'Liv muss entscheiden, ob die letzte Übertragung eine Warnung oder eine Einladung ist.'],
+        ];
+
+        foreach ($episodes as $index => [$externalId, $name, $airdate, $runtime, $summary]) {
+            $episodeStatement->execute([
+                'external_id' => $externalId,
+                'show_id' => $showId,
+                'name' => $name,
+                'season' => 1,
+                'number' => $index + 1,
+                'airdate' => $airdate,
+                'runtime' => $runtime,
+                'summary' => $summary,
+            ]);
+        }
+
+        $pdo->commit();
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        throw $error;
+    }
+
+    return ['show_id' => $showId, 'episodes' => count($episodes)];
+}
