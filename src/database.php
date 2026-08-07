@@ -22,6 +22,15 @@ function uses_postgres(PDO $pdo): bool
     return database_driver($pdo) === 'pgsql';
 }
 
+function neon_endpoint_id(string $host): ?string
+{
+    if (preg_match('/^(?<endpoint>ep-[a-z0-9-]+?)(?:-pooler)?\..*\.neon\.tech$/Di', $host, $matches) !== 1) {
+        return null;
+    }
+
+    return $matches['endpoint'];
+}
+
 function postgres_connection(string $databaseUrl): PDO
 {
     $parts = parse_url($databaseUrl);
@@ -55,6 +64,11 @@ function postgres_connection(string $databaseUrl): PDO
         $databaseName,
         $sslMode
     );
+    $endpointId = neon_endpoint_id($host);
+
+    if ($endpointId !== null) {
+        $dsn .= ";options='endpoint=" . $endpointId . "'";
+    }
 
     return new PDO(
         $dsn,
@@ -73,10 +87,19 @@ function database(): PDO
     static $pdo = null;
 
     if (!($pdo instanceof PDO)) {
-        $databaseUrl = getenv('DATABASE_URL');
+        $databaseUrl = null;
 
-        if (is_string($databaseUrl) && trim($databaseUrl) !== '') {
-            $pdo = postgres_connection(trim($databaseUrl));
+        foreach (['DATABASE_URL_UNPOOLED', 'POSTGRES_URL_NON_POOLING', 'DATABASE_URL'] as $variableName) {
+            $value = getenv($variableName);
+
+            if (is_string($value) && trim($value) !== '') {
+                $databaseUrl = trim($value);
+                break;
+            }
+        }
+
+        if ($databaseUrl !== null) {
+            $pdo = postgres_connection($databaseUrl);
         } else {
             if (getenv('VERCEL') === '1') {
                 throw new RuntimeException(

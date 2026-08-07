@@ -67,7 +67,9 @@ als Fallback verwendet.
 1. Das GitHub-Repository in Vercel als neues Projekt importieren oder im verknüpften
    Projekt `vercel git connect` ausführen.
 2. Im Vercel Marketplace eine Postgres-Integration wie Neon mit dem Projekt verbinden.
-   Die Integration muss `DATABASE_URL` für Production und Preview setzen.
+   Die Integration muss `DATABASE_URL` setzen. Bei Neon bevorzugt die App automatisch
+   `DATABASE_URL_UNPOOLED`, damit auch ältere PHP-`libpq`-Versionen sicher verbinden
+   und das Schema ohne Pooler-Einschränkungen anlegen können.
 3. `TMDB_API_TOKEN`, `TMDB_API_READ_TOKEN` oder `TMDB_API_KEY` in den
    Vercel-Umgebungsvariablen für Production und Preview hinterlegen.
 4. Beim ersten Request prüft die Anwendung das Schema und legt fehlende Tabellen
