@@ -50,3 +50,17 @@ Es musste keine SQL-Anweisung geändert werden. Der sichere Aufbau war bereits T
 - Suchtext `' OR '1'='1` wird als gewöhnlicher Suchwert behandelt und verändert die WHERE-Bedingung nicht.
 - Eine Routen-ID wie `1 OR 1=1` besteht die Integer-Validierung nicht und führt zu HTTP 404.
 - Die Zahl der Beiträge bleibt nach den Angriffstests unverändert.
+
+## Abschluss-Nachtrag nach Silber, Gold und Diamant
+
+Nach dem Bronze-Audit kamen weitere SQL-Anweisungen hinzu. Auch sie wurden einzeln geprüft:
+
+- Schema und Import für `comments`
+- 1:n-Auswertung mit `LEFT JOIN` auf `/resonanz`
+- Schema und Beispieldaten für `tags` und `post_tag`
+- n:m-JOIN auf der Beitragsdetailseite
+- SELECTs für Autoren und Schlagwörter im Formular
+- Existenzprüfung für Autor- und Schlagwort-IDs
+- INSERT in `posts` und `post_tag` beim POST
+
+Alle neuen Anweisungen laufen ebenfalls über `prepare()` und `execute()`. Der abschließende Quelltext-Scan findet keine direkten Aufrufe von `PDO::query()` oder `PDO::exec()` und keine Verkettung von GET-, POST-, Routen- oder API-Werten in SQL.
