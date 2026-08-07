@@ -260,6 +260,164 @@ function import_episodes(PDO $pdo, array $showIds): array
     ];
 }
 
+function import_selected_show(PDO $pdo, int $externalId): array
+{
+    if ($externalId < 1) {
+        throw new InvalidArgumentException('Die TVmaze-ID muss positiv sein.');
+    }
+
+    $show = api_get('/shows/' . $externalId);
+    $episodes = api_get('/shows/' . $externalId . '/episodes');
+    $returnedId = filter_var($show['id'] ?? null, FILTER_VALIDATE_INT);
+    $name = api_text($show['name'] ?? '');
+
+    if ($returnedId === false || $returnedId !== $externalId || $name === '') {
+        throw new RuntimeException('TVmaze hat keinen vollständigen Seriendatensatz geliefert.');
+    }
+
+    $showStatement = $pdo->prepare(
+        'INSERT INTO shows (
+            external_id, name, language, status, premiered, summary, image_url, source_url
+        ) VALUES (
+            :external_id, :name, :language, :status, :premiered, :summary, :image_url, :source_url
+        ) ON CONFLICT(external_id) DO UPDATE SET
+            name = excluded.name,
+            language = excluded.language,
+            status = excluded.status,
+            premiered = excluded.premiered,
+            summary = excluded.summary,
+            image_url = excluded.image_url,
+            source_url = excluded.source_url'
+    );
+    $genreStatement = $pdo->prepare(
+        'INSERT INTO genres (name, slug)
+        VALUES (:name, :slug)
+        ON CONFLICT(name) DO UPDATE SET slug = excluded.slug'
+    );
+    $relationStatement = $pdo->prepare(
+        'INSERT OR IGNORE INTO show_genre (show_id, genre_id)
+        VALUES (:show_id, :genre_id)'
+    );
+    $episodeStatement = $pdo->prepare(
+        'INSERT INTO episodes (
+            external_id, show_id, name, season, number, airdate, runtime, summary
+        ) VALUES (
+            :external_id, :show_id, :name, :season, :number, :airdate, :runtime, :summary
+        ) ON CONFLICT(external_id) DO UPDATE SET
+            show_id = excluded.show_id,
+            name = excluded.name,
+            season = excluded.season,
+            number = excluded.number,
+            airdate = excluded.airdate,
+            runtime = excluded.runtime,
+            summary = excluded.summary'
+    );
+
+    $pdo->beginTransaction();
+
+    try {
+        $showStatement->execute([
+            'external_id' => $externalId,
+            'name' => $name,
+            'language' => api_text($show['language'] ?? '', 'Unbekannt'),
+            'status' => api_text($show['status'] ?? '', 'Unbekannt'),
+            'premiered' => valid_api_date($show['premiered'] ?? null),
+            'summary' => api_text(
+                $show['summary'] ?? '',
+                'Für diese Serie ist bei TVmaze noch keine Beschreibung verfügbar.'
+            ),
+            'image_url' => https_url(
+                $show['image']['original'] ?? $show['image']['medium'] ?? null
+            ),
+            'source_url' => https_url($show['url'] ?? null),
+        ]);
+        $showId = (int) execute_statement(
+            $pdo,
+            'SELECT id FROM shows WHERE external_id = :external_id',
+            ['external_id' => $externalId]
+        )->fetchColumn();
+
+        if ($showId < 1) {
+            throw new RuntimeException('Die importierte Serie konnte lokal nicht gefunden werden.');
+        }
+
+        execute_statement(
+            $pdo,
+            'DELETE FROM show_genre WHERE show_id = :show_id',
+            ['show_id' => $showId]
+        );
+
+        foreach ($show['genres'] ?? [] as $genreName) {
+            $genreName = api_text($genreName);
+
+            if ($genreName === '') {
+                continue;
+            }
+
+            $genreStatement->execute([
+                'name' => $genreName,
+                'slug' => genre_slug($genreName),
+            ]);
+            $genreId = (int) execute_statement(
+                $pdo,
+                'SELECT id FROM genres WHERE name = :name',
+                ['name' => $genreName]
+            )->fetchColumn();
+
+            if ($genreId > 0) {
+                $relationStatement->execute([
+                    'show_id' => $showId,
+                    'genre_id' => $genreId,
+                ]);
+            }
+        }
+
+        $episodeCount = 0;
+        $skippedEpisodes = 0;
+
+        foreach ($episodes as $episode) {
+            if (!is_array($episode)) {
+                $skippedEpisodes++;
+                continue;
+            }
+
+            $episodeId = filter_var($episode['id'] ?? null, FILTER_VALIDATE_INT);
+            $episodeName = api_text($episode['name'] ?? '');
+
+            if ($episodeId === false || $episodeId < 1 || $episodeName === '') {
+                $skippedEpisodes++;
+                continue;
+            }
+
+            $episodeStatement->execute([
+                'external_id' => $episodeId,
+                'show_id' => $showId,
+                'name' => $episodeName,
+                'season' => nullable_positive_integer($episode['season'] ?? null),
+                'number' => nullable_positive_integer($episode['number'] ?? null),
+                'airdate' => valid_api_date($episode['airdate'] ?? null),
+                'runtime' => nullable_positive_integer($episode['runtime'] ?? null),
+                'summary' => api_text($episode['summary'] ?? ''),
+            ]);
+            $episodeCount++;
+        }
+
+        $pdo->commit();
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        throw $error;
+    }
+
+    return [
+        'show_id' => $showId,
+        'episodes' => $episodeCount,
+        'skipped' => $skippedEpisodes,
+    ];
+}
+
 function seed_nordlicht(PDO $pdo): array
 {
     $show = execute_statement(

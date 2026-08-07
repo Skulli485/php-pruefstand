@@ -23,6 +23,10 @@ function route_parameters(string $pattern, string $path): ?array
                 return null;
             }
 
+            if ($name === 'id' && preg_match('/^\d+$/D', $pathPart) !== 1) {
+                return null;
+            }
+
             $parameters[$name] = $pathPart;
             continue;
         }

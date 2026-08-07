@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/database.php';
 require_once __DIR__ . '/helpers.php';
+require_once __DIR__ . '/import.php';
 
 function language_label(string $language): string
 {
@@ -24,6 +25,66 @@ function status_label(string $status): string
         'To Be Determined' => 'Noch offen',
         default => $status,
     };
+}
+
+function search_tvmaze_shows(PDO $pdo, string $query): array
+{
+    $response = api_get('/search/shows?q=' . rawurlencode($query));
+    $existingShows = execute_statement(
+        $pdo,
+        'SELECT id, external_id FROM shows WHERE external_id IS NOT NULL'
+    )->fetchAll();
+    $existingIds = [];
+
+    foreach ($existingShows as $existingShow) {
+        $existingIds[(int) $existingShow['external_id']] = (int) $existingShow['id'];
+    }
+
+    $results = [];
+
+    foreach (array_slice($response, 0, 8) as $result) {
+        $show = is_array($result) && is_array($result['show'] ?? null)
+            ? $result['show']
+            : null;
+
+        if ($show === null) {
+            continue;
+        }
+
+        $externalId = filter_var($show['id'] ?? null, FILTER_VALIDATE_INT);
+        $name = api_text($show['name'] ?? '');
+
+        if ($externalId === false || $externalId < 1 || $name === '') {
+            continue;
+        }
+
+        $genres = [];
+
+        foreach ($show['genres'] ?? [] as $genre) {
+            $genre = api_text($genre);
+
+            if ($genre !== '') {
+                $genres[] = $genre;
+            }
+        }
+
+        $results[] = [
+            'external_id' => $externalId,
+            'local_id' => $existingIds[$externalId] ?? null,
+            'name' => $name,
+            'language' => api_text($show['language'] ?? '', 'Unbekannt'),
+            'status' => api_text($show['status'] ?? '', 'Unbekannt'),
+            'premiered' => valid_api_date($show['premiered'] ?? null),
+            'summary' => api_text(
+                $show['summary'] ?? '',
+                'Für diese Serie ist bei TVmaze noch keine Beschreibung verfügbar.'
+            ),
+            'image_url' => https_url($show['image']['medium'] ?? null),
+            'genres' => $genres,
+        ];
+    }
+
+    return $results;
 }
 
 function show_home(PDO $pdo): void
@@ -215,7 +276,12 @@ function show_episode_analysis(PDO $pdo): void
     page_end();
 }
 
-function show_new_series_form(PDO $pdo, array $values = [], array $errors = []): void
+function show_new_series_form(
+    PDO $pdo,
+    array $values = [],
+    array $errors = [],
+    string $apiError = ''
+): void
 {
     $values = array_replace([
         'name' => '',
@@ -241,13 +307,141 @@ function show_new_series_form(PDO $pdo, array $values = [], array $errors = []):
         'In Development' => 'In Entwicklung',
         'To Be Determined' => 'Noch offen',
     ];
+    $apiSearchAttempted = array_key_exists('api_q', $_GET);
+    $apiQuery = request_text($_GET, 'api_q');
+    $apiResults = [];
+
+    if ($apiSearchAttempted) {
+        $queryLength = mb_strlen($apiQuery);
+
+        if ($apiQuery === '') {
+            http_response_code(422);
+            $apiError = 'Bitte gib einen Serientitel für die Suche ein.';
+        } elseif ($queryLength < 2) {
+            http_response_code(422);
+            $apiError = 'Der Suchbegriff muss mindestens 2 Zeichen lang sein.';
+        } elseif ($queryLength > 100) {
+            http_response_code(422);
+            $apiError = 'Der Suchbegriff darf höchstens 100 Zeichen lang sein.';
+        } else {
+            try {
+                $apiResults = search_tvmaze_shows($pdo, $apiQuery);
+            } catch (RuntimeException $error) {
+                http_response_code(502);
+                $apiError = 'Die Suche bei TVmaze ist gerade nicht möglich. Bitte versuche es später erneut.';
+            }
+        }
+    }
 
     page_start('Neue Serie', '/serien/neu');
     ?>
     <section class="form-heading">
-        <p class="eyebrow">Diamant · POST</p>
-        <h1>Eigene Serie anlegen</h1>
-        <p>Die neue Serie wird lokal in SQLite gespeichert.</p>
+        <p class="eyebrow">TVmaze · Automatischer Import</p>
+        <h1>Neue Serie hinzufügen</h1>
+        <p>Suche zuerst nach dem Titel und wähle danach die passende Serie aus.</p>
+    </section>
+
+    <section class="api-search-panel" aria-labelledby="api-search-heading">
+        <div>
+            <p class="eyebrow">Empfohlen</p>
+            <h2 id="api-search-heading">Seriendaten automatisch übernehmen</h2>
+            <p>
+                TVmaze liefert Poster, Beschreibung, Sprache, Status, Premiere,
+                Genres und alle verfügbaren Episoden.
+            </p>
+        </div>
+        <form class="api-search-form" method="get" action="/serien/neu">
+            <label for="api_q">Serientitel</label>
+            <div>
+                <input
+                    id="api_q"
+                    name="api_q"
+                    type="search"
+                    value="<?= e($apiQuery) ?>"
+                    placeholder="Zum Beispiel Dark oder The Bear"
+                    minlength="2"
+                    maxlength="100"
+                    required
+                    <?= $apiError !== '' ? 'aria-invalid="true" aria-describedby="api-error"' : '' ?>
+                >
+                <button type="submit">TVmaze durchsuchen</button>
+            </div>
+        </form>
+    </section>
+
+    <?php if ($apiError !== ''): ?>
+        <section class="error-summary" id="api-error" role="alert">
+            <h2>API-Suche nicht erfolgreich</h2>
+            <p><?= e($apiError) ?></p>
+        </section>
+    <?php elseif ($apiSearchAttempted && $apiResults === []): ?>
+        <section class="empty-state api-empty-state">
+            <h2>Keine passende Serie gefunden</h2>
+            <p>Prüfe die Schreibweise oder versuche einen kürzeren Titel.</p>
+        </section>
+    <?php elseif ($apiResults !== []): ?>
+        <section class="api-results" aria-labelledby="api-results-heading">
+            <div class="api-results-heading">
+                <p class="eyebrow"><?= count($apiResults) ?> Treffer</p>
+                <h2 id="api-results-heading">Welche Serie meinst du?</h2>
+                <p>Die Auswahl verhindert, dass eine gleichnamige oder falsche Serie importiert wird.</p>
+            </div>
+            <ol class="api-result-list">
+                <?php foreach ($apiResults as $result): ?>
+                    <li class="api-result-card">
+                        <div class="api-result-poster">
+                            <?php if ($result['image_url'] !== ''): ?>
+                                <img
+                                    src="<?= e($result['image_url']) ?>"
+                                    alt="Poster zu <?= e($result['name']) ?>"
+                                    loading="lazy"
+                                >
+                            <?php else: ?>
+                                <span class="poster-placeholder" aria-hidden="true">TV</span>
+                            <?php endif; ?>
+                        </div>
+                        <div class="api-result-content">
+                            <div>
+                                <p class="api-result-meta">
+                                    <span><?= e(language_label((string) $result['language'])) ?></span>
+                                    <span><?= e(status_label((string) $result['status'])) ?></span>
+                                    <span><?= e($result['premiered'] ?: 'Premiere unbekannt') ?></span>
+                                </p>
+                                <h3><?= e($result['name']) ?></h3>
+                                <p class="genre-line">
+                                    <?= e($result['genres'] !== [] ? implode(', ', $result['genres']) : 'Ohne Genre') ?>
+                                </p>
+                                <p><?= e(excerpt((string) $result['summary'], 230)) ?></p>
+                            </div>
+                            <div class="api-result-action">
+                                <?php if ($result['local_id'] !== null): ?>
+                                    <a class="button" href="/serien/<?= (int) $result['local_id'] ?>">
+                                        Bereits vorhanden
+                                    </a>
+                                <?php else: ?>
+                                    <form method="post" action="/serien/importieren">
+                                        <input
+                                            type="hidden"
+                                            name="external_id"
+                                            value="<?= (int) $result['external_id'] ?>"
+                                        >
+                                        <button type="submit">Serie automatisch übernehmen</button>
+                                    </form>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </li>
+                <?php endforeach; ?>
+            </ol>
+        </section>
+    <?php endif; ?>
+
+    <div class="section-divider" aria-hidden="true"><span>oder manuell</span></div>
+
+    <section class="manual-form-heading" aria-labelledby="manual-form-heading">
+        <p class="eyebrow">Eigener Datensatz · POST</p>
+        <h2 id="manual-form-heading">Eigene Serie ohne API anlegen</h2>
+        <p>Für erfundene oder nicht bei TVmaze geführte Serien bleiben alle Felder frei editierbar.</p>
     </section>
 
     <?php if ($errors !== []): ?>
@@ -398,6 +592,34 @@ function show_new_series_form(PDO $pdo, array $values = [], array $errors = []):
     </div>
     <?php
     page_end();
+}
+
+function handle_tvmaze_import(PDO $pdo): void
+{
+    $rawExternalId = $_POST['external_id'] ?? null;
+
+    if (!is_string($rawExternalId) || !ctype_digit($rawExternalId) || (int) $rawExternalId < 1) {
+        http_response_code(422);
+        show_new_series_form(
+            $pdo,
+            apiError: 'Die gewählte TVmaze-ID ist ungültig. Bitte starte die Suche erneut.'
+        );
+        return;
+    }
+
+    try {
+        $result = import_selected_show($pdo, (int) $rawExternalId);
+    } catch (RuntimeException $error) {
+        http_response_code(502);
+        show_new_series_form(
+            $pdo,
+            apiError: 'Die ausgewählte Serie konnte nicht von TVmaze geladen werden. Bitte versuche es später erneut.'
+        );
+        return;
+    }
+
+    header('Location: /serien/' . (int) $result['show_id'] . '?imported=1', true, 303);
+    exit;
 }
 
 function handle_new_series(PDO $pdo): void
@@ -575,6 +797,12 @@ function show_series_detail(PDO $pdo, array $parameters): void
 
     page_start((string) $show['name'], '/serien');
     ?>
+    <?php if (request_text($_GET, 'imported') === '1'): ?>
+        <section class="success-message" role="status">
+            <strong>Import abgeschlossen.</strong>
+            Poster, Seriendaten, Genres und <?= $episodeCount ?> Episoden wurden von TVmaze übernommen.
+        </section>
+    <?php endif; ?>
     <article class="series-detail">
         <div class="detail-poster">
             <?php if ($show['image_url'] !== ''): ?>

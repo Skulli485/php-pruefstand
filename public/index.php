@@ -30,6 +30,7 @@ try {
         ['method' => 'GET', 'path' => '/episoden', 'handler' => fn(array $_parameters) => show_episode_analysis($pdo)],
         ['method' => 'GET', 'path' => '/serien/neu', 'handler' => fn(array $_parameters) => show_new_series_form($pdo)],
         ['method' => 'POST', 'path' => '/serien/neu', 'handler' => fn(array $_parameters) => handle_new_series($pdo)],
+        ['method' => 'POST', 'path' => '/serien/importieren', 'handler' => fn(array $_parameters) => handle_tvmaze_import($pdo)],
         ['method' => 'GET', 'path' => '/serien/{id}', 'handler' => fn(array $parameters) => show_series_detail($pdo, $parameters)],
     ];
 
