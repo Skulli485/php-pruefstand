@@ -633,6 +633,49 @@ select option {
     color: var(--accent);
 }
 
+.danger-zone {
+    display: flex;
+    gap: 2rem;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 75rem;
+    margin-block: 4rem 2rem;
+    padding: 1.5rem;
+    border: 1px solid rgb(255 113 104 / 55%);
+    background: rgb(255 113 104 / 6%);
+}
+
+.danger-zone h2 {
+    margin-bottom: .6rem;
+}
+
+.danger-zone p {
+    max-width: 48rem;
+    margin-bottom: 0;
+    color: var(--muted);
+}
+
+.danger-zone .eyebrow {
+    margin-bottom: .4rem;
+    color: var(--danger);
+}
+
+.danger-zone form {
+    flex: 0 0 auto;
+}
+
+.danger-button {
+    border-color: var(--danger);
+    color: var(--danger);
+    white-space: nowrap;
+}
+
+.danger-button:hover {
+    border-color: var(--danger);
+    background: var(--danger);
+    color: var(--background);
+}
+
 .entry-form {
     padding: clamp(1.25rem, 4vw, 2.5rem);
     border: 1px solid var(--line);
@@ -978,10 +1021,16 @@ code {
 
     .form-actions,
     .hero-actions,
-    .section-heading-row {
+    .section-heading-row,
+    .danger-zone {
         align-items: flex-start;
         flex-direction: column;
         margin-left: 0;
+    }
+
+    .danger-zone form,
+    .danger-button {
+        width: 100%;
     }
 }
 

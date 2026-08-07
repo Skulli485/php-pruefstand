@@ -129,6 +129,7 @@ function show_home(PDO $pdo): void
 function show_series(PDO $pdo): void
 {
     $search = request_text($_GET, 'q');
+    $flashMessage = take_flash_message();
     $searchPattern = '%' . $search . '%';
     $shows = execute_statement(
         $pdo,
@@ -170,6 +171,12 @@ function show_series(PDO $pdo): void
         </form>
         <p class="result-count"><?= count($shows) ?> Treffer</p>
     </section>
+
+    <?php if ($flashMessage !== ''): ?>
+        <section class="success-message" role="status">
+            <?= e($flashMessage) ?>
+        </section>
+    <?php endif; ?>
 
     <?php if ($shows === []): ?>
         <section class="empty-state">
@@ -749,6 +756,59 @@ function handle_new_series(PDO $pdo): void
     exit;
 }
 
+function handle_delete_series(PDO $pdo, array $parameters): void
+{
+    $id = filter_var($parameters['id'] ?? null, FILTER_VALIDATE_INT);
+
+    if ($id === false || $id < 1) {
+        not_found('Die Serien-ID ist ungültig.');
+        return;
+    }
+
+    if (!valid_csrf_token($_POST['csrf_token'] ?? null)) {
+        forbidden('Das Sicherheitstoken ist ungültig oder abgelaufen. Bitte öffne die Serienseite erneut.');
+        return;
+    }
+
+    $show = execute_statement(
+        $pdo,
+        'SELECT id, name FROM shows WHERE id = :id',
+        ['id' => $id]
+    )->fetch();
+
+    if ($show === false) {
+        not_found('Diese Serie existiert nicht oder wurde bereits gelöscht.');
+        return;
+    }
+
+    $pdo->beginTransaction();
+
+    try {
+        $deleteStatement = $pdo->prepare('DELETE FROM shows WHERE id = :id');
+        $deleteStatement->execute(['id' => $id]);
+
+        if ($deleteStatement->rowCount() !== 1) {
+            throw new RuntimeException('Die Serie konnte nicht eindeutig gelöscht werden.');
+        }
+
+        $pdo->commit();
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        throw $error;
+    }
+
+    rotate_csrf_token();
+    set_flash_message(
+        'Die Serie „' . (string) $show['name'] . '“ und ihre zugehörigen Episoden wurden gelöscht.'
+    );
+
+    header('Location: /serien', true, 303);
+    exit;
+}
+
 function show_series_detail(PDO $pdo, array $parameters): void
 {
     $id = filter_var($parameters['id'] ?? null, FILTER_VALIDATE_INT);
@@ -890,6 +950,27 @@ function show_series_detail(PDO $pdo, array $parameters): void
                 <p class="muted-text">Angezeigt werden die ersten <?= count($episodes) ?> Episoden.</p>
             <?php endif; ?>
         <?php endif; ?>
+    </section>
+
+    <section class="danger-zone" aria-labelledby="delete-heading">
+        <div>
+            <p class="eyebrow">Gefahrenbereich</p>
+            <h2 id="delete-heading">Serie löschen</h2>
+            <p id="delete-description">
+                Dabei werden die Serie, <?= $episodeCount ?> zugehörige Episoden
+                und alle Genre-Zuordnungen dauerhaft entfernt.
+            </p>
+        </div>
+        <form
+            method="post"
+            action="/serien/<?= (int) $show['id'] ?>/loeschen"
+            onsubmit="return confirm('Serie und alle zugehörigen Episoden wirklich löschen?')"
+        >
+            <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+            <button class="danger-button" type="submit" aria-describedby="delete-description">
+                Serie endgültig löschen
+            </button>
+        </form>
     </section>
 
     <p><a class="text-link" href="/serien">Zurück zu allen Serien</a></p>

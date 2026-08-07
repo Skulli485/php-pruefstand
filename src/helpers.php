@@ -17,6 +17,56 @@ function request_text(array $source, string $key): string
     return is_string($value) ? trim($value) : '';
 }
 
+function csrf_token(): string
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        throw new RuntimeException('Für das CSRF-Token ist eine aktive Sitzung erforderlich.');
+    }
+
+    $token = $_SESSION['csrf_token'] ?? null;
+
+    if (!is_string($token) || preg_match('/^[a-f0-9]{64}$/D', $token) !== 1) {
+        $token = bin2hex(random_bytes(32));
+        $_SESSION['csrf_token'] = $token;
+    }
+
+    return $token;
+}
+
+function valid_csrf_token(mixed $token): bool
+{
+    $storedToken = $_SESSION['csrf_token'] ?? null;
+
+    return session_status() === PHP_SESSION_ACTIVE
+        && is_string($storedToken)
+        && is_string($token)
+        && hash_equals($storedToken, $token);
+}
+
+function rotate_csrf_token(): void
+{
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        unset($_SESSION['csrf_token']);
+    }
+}
+
+function set_flash_message(string $message): void
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        throw new RuntimeException('Für die Rückmeldung ist eine aktive Sitzung erforderlich.');
+    }
+
+    $_SESSION['flash_message'] = $message;
+}
+
+function take_flash_message(): string
+{
+    $message = $_SESSION['flash_message'] ?? '';
+    unset($_SESSION['flash_message']);
+
+    return is_string($message) ? $message : '';
+}
+
 function excerpt(string $text, int $length = 150): string
 {
     if (mb_strlen($text) <= $length) {
@@ -83,6 +133,21 @@ function not_found(string $message = 'Die angeforderte Seite wurde nicht gefunde
         <h1>Nicht gefunden</h1>
         <p><?= e($message) ?></p>
         <a class="text-link" href="/">Zur Übersicht</a>
+    </section>
+    <?php
+    page_end();
+}
+
+function forbidden(string $message = 'Diese Aktion ist nicht erlaubt.'): void
+{
+    http_response_code(403);
+    page_start('Zugriff verweigert');
+    ?>
+    <section class="empty-state">
+        <p class="status-code">403</p>
+        <h1>Zugriff verweigert</h1>
+        <p><?= e($message) ?></p>
+        <a class="text-link" href="/serien">Zurück zu allen Serien</a>
     </section>
     <?php
     page_end();

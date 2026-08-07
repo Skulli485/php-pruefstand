@@ -20,6 +20,14 @@ if (PHP_SAPI === 'cli-server') {
     }
 }
 
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_set_cookie_params([
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+    session_start();
+}
+
 $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
 
 try {
@@ -31,6 +39,7 @@ try {
         ['method' => 'GET', 'path' => '/serien/neu', 'handler' => fn(array $_parameters) => show_new_series_form($pdo)],
         ['method' => 'POST', 'path' => '/serien/neu', 'handler' => fn(array $_parameters) => handle_new_series($pdo)],
         ['method' => 'POST', 'path' => '/serien/importieren', 'handler' => fn(array $_parameters) => handle_tvmaze_import($pdo)],
+        ['method' => 'POST', 'path' => '/serien/{id}/loeschen', 'handler' => fn(array $parameters) => handle_delete_series($pdo, $parameters)],
         ['method' => 'GET', 'path' => '/serien/{id}', 'handler' => fn(array $parameters) => show_series_detail($pdo, $parameters)],
     ];
 
