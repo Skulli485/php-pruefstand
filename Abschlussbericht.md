@@ -1,4 +1,4 @@
-# Abschlussbericht – Serienprüfstand
+# Abschlussbericht – Film- & Serienprüfstand
 
 ## 1. Repository
 
@@ -24,30 +24,54 @@ Danach ist die Anwendung unter <http://localhost:8000> erreichbar.
 
 Der ursprüngliche Stand verwendete Blindtexte von JSONPlaceholder. Diese Texte waren inhaltlich schwer verständlich und passten nicht gut zu einer vorzeigbaren Lernanwendung. Deshalb wurde der Prüfstand auf Serien umgestellt.
 
-Die Daten stammen jetzt aus der öffentlichen [TVmaze-API](https://www.tvmaze.com/api). Das automatische Setup wählt englisch- oder deutschsprachige Serien aus. Über die neue Titelsuche kann anschließend bewusst auch jede andere bei TVmaze geführte Serie ausgewählt werden. Beschreibungen werden von HTML befreit und als Klartext gespeichert.
+Die Daten stammen jetzt aus der öffentlichen [TVmaze-API](https://www.tvmaze.com/api). Das automatische Setup wählt englisch- oder deutschsprachige Serien aus. Die normale Suche prüft zuerst den lokalen Katalog und zeigt bei fehlendem exaktem Titel zusätzlich passende TVmaze-Treffer an. Von dort kann jede gewünschte Serie bewusst importiert werden. Beschreibungen werden von HTML befreit und als Klartext gespeichert.
+
+Als Erweiterung verwaltet dieselbe Anwendung nun auch Filme. Manuelle Filme funktionieren
+ohne weitere Zugangsdaten. Mit einem serverseitigen `TMDB_API_TOKEN`,
+`TMDB_API_READ_TOKEN` oder `TMDB_API_KEY` sucht die App bei
+[TMDB](https://www.themoviedb.org), importiert deutsche Filmdaten und speichert die für
+Deutschland verfügbaren JustWatch-Anbieter getrennt nach Abo, kostenlos, Leihen und Kaufen.
+Lokal lädt die Anwendung diese Werte aus einer von Git ignorierten `.env`-Datei;
+bereits gesetzte Server- oder Hosting-Variablen behalten dabei Vorrang.
 
 ## 5. Routen
 
 | Methode | Route | Funktion |
 | --- | --- | --- |
 | GET | `/` | Übersicht und Datenbestand |
-| GET | `/serien` | Serienliste und Suche mit `?q=` |
+| GET | `/serien` | lokale Suche mit Online-Fallback über `?q=` |
 | GET | `/serien/{id}` | Serie mit Genres und Episoden |
 | GET | `/episoden` | 1:n-Auswertung Serien ↔ Episoden |
 | GET | `/serien/neu` | TVmaze-Suche und manuelles Eingabeformular |
 | POST | `/serien/neu` | validieren, speichern und redirecten |
 | POST | `/serien/importieren` | gewählten TVmaze-Treffer samt Episoden importieren |
+| POST | `/serien/{id}/loeschen` | Serie, Episoden und Genre-Zuordnungen löschen |
+| GET | `/filme` | lokale Filmsuche mit optionalem TMDB-Fallback |
+| GET | `/filme/{id}` | Film mit Genres und deutschen Anbieteroptionen |
+| GET | `/filme/neu` | TMDB-Suche und manuelles Filmformular |
+| POST | `/filme/neu` | manuellen Film validieren und speichern |
+| POST | `/filme/importieren` | gewählten TMDB-Film importieren |
+| POST | `/filme/{id}/loeschen` | Film und abhängige Zuordnungen löschen |
 
 ## 6. Datenbanktabellen
 
-Die aktive SQLite-Datenbank `data/serienpruefstand.sqlite` enthält vier Tabellen:
+Lokal verwendet die App `data/serienpruefstand.sqlite`; auf Vercel nutzt dieselbe
+PDO-Schicht eine über `DATABASE_URL` verbundene Postgres-Datenbank. Das Schema enthält
+sieben Tabellen:
 
 - `shows`
 - `episodes`
 - `genres`
 - `show_genre`
+- `movies`
+- `movie_genre`
+- `movie_provider`
 
 Externe IDs werden getrennt von lokalen Primärschlüsseln gespeichert. Dadurch können lokal angelegte Serien eine normale lokale ID erhalten, während ihre `external_id` leer bleibt.
+
+Dasselbe gilt für Filme. `movie_genre` bildet ihre n:m-Beziehung zu den gemeinsam
+genutzten Genres ab. `movie_provider` speichert pro Film Anbieter und Angebotsart;
+beide Tabellen werden beim Löschen des Films per Cascade bereinigt.
 
 ## 7. 1:n-Beziehung
 
@@ -89,8 +113,17 @@ Der zusammengesetzte Primärschlüssel verhindert doppelte Genre-Zuordnungen.
 | `/search/shows?q={titel}` | passende Serien suchen und zur Auswahl anzeigen |
 | `/shows/{id}` | ausgewählte Serie mit Poster und Genres exakt laden |
 | `/shows/{id}/episodes` | Episoden der zuvor importierten Serien |
+| `/search/movie?language=de-DE&region=DE` | deutsche TMDB-Filmsuche |
+| `/movie/{id}?language=de-DE` | ausgewählten Film vollständig laden |
+| `/movie/{id}/watch/providers` | deutsche JustWatch-Anbieter über TMDB laden |
 
 Der Abruf erfolgt mit PHP-cURL, einem eindeutigen User-Agent und kontrollierter Behandlung von HTTP- und JSON-Fehlern. TVmaze wird im Footer und über Links auf den Detailseiten als Quelle genannt.
+
+Zusätzlich werden `network`, `webChannel` und `officialSite` aus dem Seriendatensatz gespeichert. Network beziehungsweise Web Channel beschreiben den von TVmaze geführten aktuellen/letzten Ausstrahlungskanal, nicht automatisch alle derzeit buchbaren Streamingdienste. Die Detailseite zeigt deshalb einen transparenten Hinweis und verlinkt zur länderabhängigen Anbieterprüfung auf TVmaze.
+
+TMDB wird mit dem vorgeschriebenen Logo und Quellenhinweis im Footer genannt. Der
+API-Token bleibt serverseitig im Authorization-Header. Die Film-Detailseite kennzeichnet
+JustWatch als Quelle der Anbieterinformationen und verlinkt zur aktuellen Übersicht.
 
 ## 11. Bronze
 
@@ -128,9 +161,13 @@ Gold ergänzt:
 Diamant ergänzt:
 
 - die Suche nach Serientiteln unter `/serien/neu`
+- den Online-Fallback in der normalen Suche `/serien?q=...`
 - eine Trefferliste mit Poster, Metadaten und eindeutiger Auswahl
 - den automatischen Import von Serie, Genres und Episoden
+- einen „Wo ansehen?“-Bereich mit Sender-/Webkanal und geprüften externen Links
 - das weiterhin verfügbare manuelle Formular
+- einen klar abgegrenzten Löschbereich auf jeder Detailseite
+- CSRF-Schutz und Bestätigungsdialog für die Löschaktion
 - GET und POST auf derselben Route
 - serverseitige Validierung
 - verständliche Fehlermeldungen und erhaltene Eingaben
@@ -144,6 +181,9 @@ Der Server prüft:
 
 - API-Suchbegriffe auf 2 bis 100 Zeichen
 - die ausgewählte TVmaze-ID als positive Ganzzahl
+- das Import-Token gegen die aktive PHP-Sitzung
+- die Lösch-ID als positive Ganzzahl
+- das Lösch-Token gegen die aktive PHP-Sitzung
 - Titel als Pflichtfeld mit 2 bis 150 Zeichen
 - Sprache gegen eine feste Liste erlaubter Werte
 - Status gegen eine feste Liste erlaubter Werte
@@ -178,10 +218,25 @@ GET /serien/neu?api_q=Dark
 → POST /serien/importieren mit der TVmaze-ID
 → PHP lädt /shows/{id} und /shows/{id}/episodes
 → Upserts in shows, genres, show_genre und episodes
+→ Sender-/Webkanal und offizielle Serienseite speichern
 → HTTP 303 auf /serien/{lokale-id}?imported=1
 ```
 
 Ein erneuter Import derselben TVmaze-ID aktualisiert denselben lokalen Datensatz.
+
+Auch das Löschen folgt POST → Redirect → GET:
+
+```text
+GET /serien/{id}
+→ CSRF-Token und Löschformular anzeigen
+→ Benutzer bestätigt die Warnung
+→ POST /serien/{id}/loeschen
+→ ID und CSRF-Token validieren
+→ vorbereitetes DELETE in einer Transaktion
+→ Episoden und Genre-Zuordnungen per ON DELETE CASCADE entfernen
+→ HTTP 303 auf /serien
+→ einmalige Erfolgsmeldung anzeigen
+```
 
 ## 17. Sicherheitsmaßnahmen
 
@@ -190,6 +245,9 @@ Ein erneuter Import derselben TVmaze-ID aktualisiert denselben lokalen Datensatz
 - Routen-IDs werden als positive Integer validiert und danach als Parameter gebunden.
 - API-Import und Formularspeicherung laufen in Transaktionen.
 - Der Browser sendet beim API-Import nur die externe ID; PHP lädt die vertrauenswürdigen Felder erneut direkt von TVmaze.
+- Der Online-Import verlangt zusätzlich ein gültiges, sitzungsgebundenes CSRF-Token.
+- Die destruktive Route akzeptiert nur POST und verlangt ein kryptografisch zufälliges, sitzungsgebundenes CSRF-Token.
+- Das Token wird mit `hash_equals()` geprüft und nach erfolgreichem Löschen erneuert.
 - `PRAGMA foreign_keys = ON` aktiviert die Foreign-Key-Prüfung.
 - UNIQUE-Regeln verhindern doppelte externe Datensätze.
 - Der zusammengesetzte Primärschlüssel verhindert doppelte n:m-Paare.
@@ -223,14 +281,28 @@ Erfolgreich getestet wurden:
 - gültiger POST mit HTTP 303 auf die dynamische ID `/serien/13`
 - Detailseite der lokal angelegten deutschen Beispielserie „Nordlicht“
 - TVmaze-Suche nach „Dark“ mit acht unterscheidbaren Treffern
+- Hauptsuche zeigt TVmaze-Treffer, wenn „Dark“ nicht als exakter lokaler Titel vorhanden ist
+- exakter lokaler Treffer „Arrow“ überspringt die Online-Suche
 - Einzelimport von „Dark“ mit Poster, Genres und 26 Episoden
-- HTTP 303 auf `/serien/15?imported=1` in der lokalen Testdatenbank
+- Speicherung von Netflix als TVmaze-Webkanal und der offiziellen Netflix-URL
+- „Wo ansehen?“-Bereich mit Anbieterhinweis, TVmaze-Link und sicherem `rel="noopener noreferrer"`
+- fehlendes Import-CSRF-Token führt zu HTTP 403
+- kurzer Suchbegriff und vollständig unbekannter Online-Suchbegriff erhalten verständliche Zustände
+- HTTP 303 auf `/serien/{lokale-id}?imported=1`
 - zweiter Import von „Dark“ auf dieselbe lokale ID und weiterhin 26 Episoden
 - Kennzeichnung bereits importierter Suchtreffer als „Bereits vorhanden“
 - HTTP 422 für leere, nullwertige und als Array gesendete TVmaze-IDs
 - HTTP 502 mit verständlicher Meldung für eine nicht vorhandene TVmaze-ID
 - HTML-Escaping eines `<script>`-Suchbegriffs
 - HTTP 405 mit `Allow: POST` bei GET auf `/serien/importieren`
+- sichtbarer Gefahrenbereich mit Bestätigungsdialog auf der Detailseite
+- HTTP 403 für fehlende, falsche und als Array gesendete CSRF-Tokens
+- bestehende Serie bleibt nach einem abgewiesenen Löschversuch erhalten
+- HTTP 405 mit `Allow: POST` bei GET auf die Löschroute
+- HTTP 303 auf `/serien` nach erfolgreichem Löschen
+- einmalige, escaped Erfolgsmeldung nach dem Redirect
+- Cascade-Löschung einer temporären Serie, ihrer Episode und ihrer Genre-Zuordnung
+- `PRAGMA foreign_key_check` auch nach dem Löschen ohne Fehler
 - vollständige Posteranzeige mit `object-fit: contain` in der Serienübersicht
 - getrennte, begrenzte Poster- und Textspalten auf der Detailseite
 - Refresh der Detailseite ohne zweiten INSERT
@@ -242,20 +314,23 @@ Ein frischer Setup-Lauf enthält 13 Serien, 1.085 Episoden, 13 Genres und 37 Gen
 
 - Ein automatisierter Nachher-Screenshot fehlt, weil die installierte In-App-Browser-Verbindung in der Testumgebung keine verfügbaren Browser meldete. Die vom Benutzer bereitgestellten Vorher-Screenshots dienten als Fehlerreferenz.
 - Die TVmaze-Beschreibungen sind überwiegend Englisch. Sie sind verständlicher als die vorherigen Blindtexte, werden aber nicht automatisch ins Deutsche übersetzt.
-- `WARMUP.md` bleibt absichtlich unbeantwortet, damit die Lernfragen selbst bearbeitet werden können.
+- Die öffentliche TVmaze-API liefert keine vollständige aktuelle Streaming-Verfügbarkeit pro Land. Angezeigt werden deshalb der TVmaze-Sender/Webkanal und ein Link zur aktuellen, länderabhängigen Anbieterprüfung auf der TVmaze-Seite.
+- Für die automatische Filmsuche werden ein TMDB API Read Access Token oder alternativ
+  ein v3-API-Schlüssel als serverseitige Umgebungsvariable benötigt. Ohne Zugangsdaten
+  bleiben manuelle Filme und der vollständige Serienbereich verfügbar.
+- `WARMUP.md` ist vollständig beantwortet.
 
-## 20. Git-Status nach Abschluss und Push
+## 20. Git-Prüfung vor der Abgabe
 
-```text
-On branch main
-Your branch is up to date with 'origin/main'.
-
-nothing to commit, working tree clean
-```
+Der Arbeitsbaum wird nach jedem logischen Commit mit `git status --short` und vor der Abgabe zusätzlich gegen `origin/main` geprüft. Die lokale SQLite-Datenbank bleibt dabei durch `.gitignore` außerhalb der Versionsverwaltung.
 
 ## 21. Commit-Verlauf vor diesem Dokumentationsupdate
 
 ```text
+0d41b77 Add online search fallback and watch links
+d0145b5 Document protected series deletion
+249708d Add protected series deletion
+4d54e4d Answer PHP warmup questions
 3f176a2 Add TVmaze series search and import
 b6bb512 Polish poster layouts and Nordlicht demo
 387e6d4 Add final series report
@@ -282,7 +357,7 @@ Der Browser sendet Methode und URL an `public/index.php`. Der Front Controller l
 
 ### Prepared Statements
 
-SQL-Struktur und Werte werden getrennt an SQLite übergeben. Ein Eingabewert kann dadurch den SQL-Satz nicht verändern.
+SQL-Struktur und Werte werden getrennt über PDO an SQLite beziehungsweise Postgres übergeben. Ein Eingabewert kann dadurch den SQL-Satz nicht verändern.
 
 ### Escaping
 
@@ -290,4 +365,4 @@ SQL-Struktur und Werte werden getrennt an SQLite übergeben. Ein Eingabewert kan
 
 ### Beziehungen
 
-Bei 1:n liegt der Fremdschlüssel auf der Seite mit den vielen Datensätzen. Bei n:m wird eine Zwischentabelle benötigt, weil beide Seiten mehrere Gegenstücke besitzen können.
+Bei 1:n liegt der Fremdschlüssel auf der Seite mit den vielen Datensätzen. Bei n:m wird eine Zwischentabelle benötigt, weil beide Seiten mehrere Gegenstücke besitzen können. Das gilt sowohl für `show_genre` als auch für `movie_genre`; `movie_provider` modelliert zusätzlich mehrere Angebotsarten pro Film.

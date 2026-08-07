@@ -185,7 +185,7 @@ button:hover {
 
 .summary {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     margin-top: 5rem;
     border-block: 1px solid var(--line);
 }
@@ -493,6 +493,12 @@ select option {
     margin-top: 3.5rem;
 }
 
+.online-results {
+    margin-top: 5rem;
+    padding-top: 2.5rem;
+    border-top: 1px solid var(--accent);
+}
+
 .api-results-heading {
     max-width: 48rem;
 }
@@ -555,6 +561,16 @@ select option {
 .api-result-content > div > p:last-child {
     margin-bottom: 0;
     color: #c6cfd4;
+}
+
+.availability-hint {
+    margin: .7rem 0 0;
+    color: var(--muted);
+    font: .78rem var(--mono);
+}
+
+.availability-hint strong {
+    color: var(--text);
 }
 
 .api-result-meta {
@@ -631,6 +647,49 @@ select option {
 .success-message strong {
     margin-right: .4rem;
     color: var(--accent);
+}
+
+.danger-zone {
+    display: flex;
+    gap: 2rem;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 75rem;
+    margin-block: 4rem 2rem;
+    padding: 1.5rem;
+    border: 1px solid rgb(255 113 104 / 55%);
+    background: rgb(255 113 104 / 6%);
+}
+
+.danger-zone h2 {
+    margin-bottom: .6rem;
+}
+
+.danger-zone p {
+    max-width: 48rem;
+    margin-bottom: 0;
+    color: var(--muted);
+}
+
+.danger-zone .eyebrow {
+    margin-bottom: .4rem;
+    color: var(--danger);
+}
+
+.danger-zone form {
+    flex: 0 0 auto;
+}
+
+.danger-button {
+    border-color: var(--danger);
+    color: var(--danger);
+    white-space: nowrap;
+}
+
+.danger-button:hover {
+    border-color: var(--danger);
+    background: var(--danger);
+    color: var(--background);
 }
 
 .entry-form {
@@ -841,6 +900,125 @@ select option {
     font-family: var(--mono);
 }
 
+.watch-section {
+    display: grid;
+    grid-template-columns: minmax(16rem, .75fr) minmax(12rem, .45fr) minmax(18rem, 1fr);
+    gap: clamp(1.5rem, 4vw, 3rem);
+    max-width: 75rem;
+    margin-top: 4rem;
+    padding: clamp(1.5rem, 4vw, 2.25rem);
+    border: 1px solid var(--line);
+    background:
+        linear-gradient(135deg, rgb(246 183 60 / 8%), transparent 55%),
+        var(--surface);
+}
+
+.watch-heading h2 {
+    margin-bottom: 0;
+    font-size: clamp(1.8rem, 4vw, 2.7rem);
+}
+
+.watch-heading .eyebrow {
+    margin-top: 0;
+}
+
+.watch-provider {
+    display: grid;
+    align-content: center;
+    padding-inline: 1.5rem;
+    border-inline: 1px solid var(--line-soft);
+}
+
+.watch-provider span,
+.watch-provider small {
+    color: var(--muted);
+    font: .75rem var(--mono);
+    text-transform: uppercase;
+}
+
+.watch-provider strong {
+    color: var(--accent);
+    font-family: var(--condensed);
+    font-size: 1.6rem;
+}
+
+.watch-note {
+    margin: 0;
+    color: #c6cfd4;
+}
+
+.watch-actions {
+    display: flex;
+    grid-column: 3;
+    gap: 1.25rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.movie-placeholder {
+    padding: 1rem;
+    font-size: clamp(1.35rem, 6vw, 2.7rem);
+    letter-spacing: .08em;
+}
+
+.original-title {
+    margin-top: -1.1rem;
+    color: var(--muted);
+    font-family: var(--mono);
+}
+
+.provider-grid {
+    display: grid;
+    grid-column: 2 / -1;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: .75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.provider-card {
+    display: flex;
+    gap: .8rem;
+    align-items: center;
+    min-width: 0;
+    padding: .7rem;
+    border: 1px solid var(--line-soft);
+    background: rgb(0 0 0 / 18%);
+}
+
+.provider-card img {
+    width: 2.8rem;
+    height: 2.8rem;
+    flex: 0 0 auto;
+    border-radius: .45rem;
+    object-fit: cover;
+}
+
+.provider-card div {
+    display: grid;
+    min-width: 0;
+}
+
+.provider-card span {
+    color: var(--muted);
+    font: .7rem var(--mono);
+    text-transform: uppercase;
+}
+
+.provider-card strong {
+    overflow: hidden;
+    color: var(--accent);
+    font-family: var(--condensed);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.movie-watch-section .watch-note,
+.movie-watch-section .watch-actions {
+    grid-column: 1 / -1;
+}
+
 .episode-section {
     margin-block: 5rem 3rem;
     padding-top: 2rem;
@@ -884,7 +1062,36 @@ code {
     color: var(--accent);
 }
 
+.site-footer > p {
+    margin-top: 0;
+}
+
+.tmdb-credit {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    max-width: 52rem;
+    margin-top: 1rem;
+}
+
+.tmdb-credit a {
+    flex: 0 0 3.5rem;
+}
+
+.tmdb-credit img {
+    width: 3.5rem;
+    height: auto;
+}
+
+.tmdb-credit p {
+    margin: 0;
+}
+
 @media (max-width: 950px) {
+    .summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .form-layout,
     .series-detail,
     .api-search-panel {
@@ -904,6 +1111,24 @@ code {
     .api-result-action button,
     .api-result-action .button {
         width: auto;
+    }
+
+    .watch-section {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .watch-provider {
+        padding-right: 0;
+        border-right: 0;
+    }
+
+    .watch-note,
+    .watch-actions {
+        grid-column: 1 / -1;
+    }
+
+    .provider-grid {
+        grid-column: 1 / -1;
     }
 
     .detail-poster {
@@ -978,10 +1203,36 @@ code {
 
     .form-actions,
     .hero-actions,
-    .section-heading-row {
+    .section-heading-row,
+    .danger-zone {
         align-items: flex-start;
         flex-direction: column;
         margin-left: 0;
+    }
+
+    .danger-zone form,
+    .danger-button {
+        width: 100%;
+    }
+
+    .watch-section {
+        grid-template-columns: 1fr;
+    }
+
+    .watch-provider,
+    .watch-note,
+    .watch-actions {
+        grid-column: 1;
+    }
+
+    .watch-provider {
+        padding: 1rem 0;
+        border-block: 1px solid var(--line-soft);
+        border-inline: 0;
+    }
+
+    .tmdb-credit {
+        align-items: flex-start;
     }
 }
 

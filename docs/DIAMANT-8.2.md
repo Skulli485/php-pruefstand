@@ -24,13 +24,30 @@ GET /serien/neu?api_q={titel}
   → TVmaze-Treffer anzeigen
 
 POST /serien/importieren
-  → externe ID als positive Ganzzahl validieren
+  → CSRF-Token und externe ID validieren
   → Serie und Episoden serverseitig erneut von TVmaze laden
-  → Serie, Genres, Beziehungen und Episoden in einer Transaktion upserten
+  → Serie, Genres, Beziehungen, Episoden und Anbieter-Metadaten upserten
   → HTTP 303 auf /serien/{lokale-id}?imported=1
 ```
 
-Nur die externe ID kommt aus dem Formular. Poster, Texte, Metadaten, Genres und Episoden werden nicht aus versteckten Feldern übernommen, sondern direkt von den exakten TVmaze-Endpunkten geladen. UNIQUE-Regeln und Upserts verhindern bei einem zweiten Import Duplikate.
+Nur die externe ID und das CSRF-Token kommen aus dem Formular. Poster, Texte, Anbieter-Metadaten, Genres und Episoden werden nicht aus versteckten Feldern übernommen, sondern direkt von den exakten TVmaze-Endpunkten geladen. UNIQUE-Regeln und Upserts verhindern bei einem zweiten Import Duplikate.
+
+## Geschütztes Löschen
+
+```text
+GET /serien/{id}
+  → sitzungsgebundenes CSRF-Token im Löschformular ausgeben
+  → Benutzer bestätigt den Bestätigungsdialog
+
+POST /serien/{id}/loeschen
+  → positive ID und CSRF-Token validieren
+  → Serie mit vorbereitetem DELETE in einer Transaktion löschen
+  → Episoden und Genre-Zuordnungen per ON DELETE CASCADE entfernen
+  → Token erneuern und Erfolgsmeldung in der Sitzung speichern
+  → HTTP 303 auf /serien
+```
+
+Die destruktive Aktion ist nicht über GET erreichbar. Ein fehlendes, falsches oder als Array gesendetes Token führt zu HTTP 403, ohne den Datensatz zu verändern.
 
 ## Validierung
 

@@ -2,10 +2,12 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/../src/environment.php';
 require_once __DIR__ . '/../src/database.php';
 require_once __DIR__ . '/../src/helpers.php';
 require_once __DIR__ . '/../src/router.php';
 require_once __DIR__ . '/../src/routes.php';
+require_once __DIR__ . '/../src/movie_routes.php';
 
 $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
 $path = parse_url($requestUri, PHP_URL_PATH);
@@ -23,7 +25,9 @@ if (PHP_SAPI === 'cli-server') {
 $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
 
 try {
+    csrf_token();
     $pdo = database();
+    ensure_schema($pdo);
     $routes = [
         ['method' => 'GET', 'path' => '/', 'handler' => fn(array $_parameters) => show_home($pdo)],
         ['method' => 'GET', 'path' => '/serien', 'handler' => fn(array $_parameters) => show_series($pdo)],
@@ -31,7 +35,14 @@ try {
         ['method' => 'GET', 'path' => '/serien/neu', 'handler' => fn(array $_parameters) => show_new_series_form($pdo)],
         ['method' => 'POST', 'path' => '/serien/neu', 'handler' => fn(array $_parameters) => handle_new_series($pdo)],
         ['method' => 'POST', 'path' => '/serien/importieren', 'handler' => fn(array $_parameters) => handle_tvmaze_import($pdo)],
+        ['method' => 'POST', 'path' => '/serien/{id}/loeschen', 'handler' => fn(array $parameters) => handle_delete_series($pdo, $parameters)],
         ['method' => 'GET', 'path' => '/serien/{id}', 'handler' => fn(array $parameters) => show_series_detail($pdo, $parameters)],
+        ['method' => 'GET', 'path' => '/filme', 'handler' => fn(array $_parameters) => show_movies($pdo)],
+        ['method' => 'GET', 'path' => '/filme/neu', 'handler' => fn(array $_parameters) => show_new_movie_form($pdo)],
+        ['method' => 'POST', 'path' => '/filme/neu', 'handler' => fn(array $_parameters) => handle_new_movie($pdo)],
+        ['method' => 'POST', 'path' => '/filme/importieren', 'handler' => fn(array $_parameters) => handle_tmdb_movie_import($pdo)],
+        ['method' => 'POST', 'path' => '/filme/{id}/loeschen', 'handler' => fn(array $parameters) => handle_delete_movie($pdo, $parameters)],
+        ['method' => 'GET', 'path' => '/filme/{id}', 'handler' => fn(array $parameters) => show_movie_detail($pdo, $parameters)],
     ];
 
     dispatch($routes, $method, $path);

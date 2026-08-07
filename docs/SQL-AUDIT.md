@@ -18,11 +18,12 @@ $statement->execute($parameters);
 | Datei | SQL-Aufgabe | Variable Werte | Absicherung |
 | --- | --- | --- | --- |
 | `src/database.php` | PRAGMA, Tabellen und Indizes | keine | feste SQL-Struktur über `execute_statement()` |
+| `src/database.php` | additive Spaltenmigration für Anbieter-Metadaten | feste Spaltennamen | feste `ALTER TABLE`-Anweisungen, keine Benutzereingaben |
 | `src/import.php` | Upsert in `shows` | TVmaze-Felder | benannte Parameter |
 | `src/import.php` | Upsert in `episodes` | TVmaze-Felder und lokale Serien-ID | benannte Parameter |
 | `src/import.php` | Upsert in `genres` | Name und Slug | benannte Parameter |
 | `src/import.php` | DELETE und INSERT in `show_genre` | lokale IDs | benannte Parameter |
-| `src/import.php` | Einzelimport einer ausgewählten TVmaze-Serie | serverseitig erneut geladene API-Felder | benannte Parameter und gemeinsame Transaktion |
+| `src/import.php` | Einzelimport einer ausgewählten TVmaze-Serie samt Anbieter-Metadaten | serverseitig erneut geladene API-Felder | benannte Parameter und gemeinsame Transaktion |
 | `src/import.php` | lokale Nordlicht-Serie und Demo-Episoden | feste Beispieldaten und lokale IDs | vorbereitete SELECT-, UPDATE- und INSERT-Anweisungen |
 | `src/routes.php` | Abgleich vorhandener TVmaze-Treffer | externe IDs aus der Datenbank | feste SELECT-Abfrage, Vergleich als Integer |
 | `src/routes.php` | Serienliste mit JOIN und LIKE | GET-Suchbegriff | `:name` und `:summary` |
@@ -30,6 +31,7 @@ $statement->execute($parameters);
 | `src/routes.php` | Seriendetail und Genres | Routen-ID | Integer-Prüfung und Parameter |
 | `src/routes.php` | Formular-Existenzprüfung | Genre-IDs | vorhandene IDs werden per SELECT geladen und verglichen |
 | `src/routes.php` | INSERT in `shows` und `show_genre` | POST-Werte | vorbereitete INSERTs in Transaktion |
+| `src/routes.php` | DELETE aus `shows` | validierte Routen-ID | vorbereitete DELETE-Anweisung in Transaktion |
 
 ## Wichtige sichere Stellen
 
@@ -37,10 +39,12 @@ $statement->execute($parameters);
 - Dynamische IDs werden zuerst als positive Integer validiert und danach trotzdem gebunden.
 - TVmaze-Daten werden bereinigt und nie direkt in SQL geschrieben.
 - Die gepostete TVmaze-ID wird als positive Ganzzahl geprüft; anschließend lädt PHP die Felder erneut von `/shows/{id}`.
+- Der Import wird vor dem API- und Datenbankzugriff durch ein sitzungsgebundenes CSRF-Token geschützt.
 - `ON CONFLICT(external_id) DO UPDATE` macht den Einzelimport wiederholbar, ohne eine zweite Serie oder Episode anzulegen.
 - Die festen Werte `LIMIT 50` und `LIMIT 60` stammen nicht aus Benutzereingaben.
 - Das Formular akzeptiert nur bekannte Sprach-, Status- und Genre-Werte.
 - Alle Transaktionen werden bei Exceptions zurückgerollt.
+- Das Löschen bindet die zuvor als positive Ganzzahl validierte ID an `:id`; abhängige Zeilen entfernt SQLite über Foreign-Key-Cascades.
 - Das wiederholbare Nordlicht-Seeding verwendet Upserts und `INSERT OR IGNORE` statt unsicherer String-Konkatenation.
 
 ## Negativtests
@@ -50,5 +54,7 @@ $statement->execute($parameters);
 - Nicht vorhandene Genre-IDs führen zu HTTP 422.
 - Leere, nullwertige und als Array gesendete TVmaze-IDs führen zu HTTP 422.
 - Ein zweiter Import derselben TVmaze-ID verwendet denselben lokalen Datensatz.
+- Fehlende oder manipulierte CSRF-Tokens verhindern das DELETE bereits vor dem Datenbankzugriff.
+- Der Löschtest entfernt Serie, Episode und `show_genre`-Zeile ohne Foreign-Key-Fehler.
 - XSS-artige Titel und Beschreibungen werden escaped angezeigt.
 - Der Quelltext-Scan findet keine direkten Aufrufe von `PDO::query()` oder `PDO::exec()`.

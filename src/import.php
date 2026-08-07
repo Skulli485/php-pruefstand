@@ -53,6 +53,23 @@ function nullable_positive_integer(mixed $value): ?int
     return $number !== false && $number > 0 ? $number : null;
 }
 
+function show_distribution(array $show): array
+{
+    $webChannel = is_array($show['webChannel'] ?? null) ? $show['webChannel'] : null;
+    $network = is_array($show['network'] ?? null) ? $show['network'] : null;
+    $distribution = $webChannel ?? $network;
+    $country = is_array($distribution['country'] ?? null)
+        ? api_text($distribution['country']['name'] ?? '')
+        : '';
+
+    return [
+        'name' => api_text($distribution['name'] ?? ''),
+        'type' => $webChannel !== null ? 'web' : ($network !== null ? 'network' : ''),
+        'country' => $country,
+        'official_site_url' => https_url($show['officialSite'] ?? null),
+    ];
+}
+
 function import_shows(PDO $pdo): array
 {
     $apiShows = api_get('/shows?page=0');
@@ -74,9 +91,11 @@ function import_shows(PDO $pdo): array
 
     $showStatement = $pdo->prepare(
         'INSERT INTO shows (
-            external_id, name, language, status, premiered, summary, image_url, source_url
+            external_id, name, language, status, premiered, summary, image_url, source_url,
+            official_site_url, distribution_name, distribution_type, distribution_country
         ) VALUES (
-            :external_id, :name, :language, :status, :premiered, :summary, :image_url, :source_url
+            :external_id, :name, :language, :status, :premiered, :summary, :image_url, :source_url,
+            :official_site_url, :distribution_name, :distribution_type, :distribution_country
         ) ON CONFLICT(external_id) DO UPDATE SET
             name = excluded.name,
             language = excluded.language,
@@ -84,7 +103,11 @@ function import_shows(PDO $pdo): array
             premiered = excluded.premiered,
             summary = excluded.summary,
             image_url = excluded.image_url,
-            source_url = excluded.source_url'
+            source_url = excluded.source_url,
+            official_site_url = excluded.official_site_url,
+            distribution_name = excluded.distribution_name,
+            distribution_type = excluded.distribution_type,
+            distribution_country = excluded.distribution_country'
     );
     $showIdStatement = $pdo->prepare(
         'SELECT id FROM shows WHERE external_id = :external_id'
@@ -101,8 +124,9 @@ function import_shows(PDO $pdo): array
         'SELECT id FROM genres WHERE name = :name'
     );
     $relationStatement = $pdo->prepare(
-        'INSERT OR IGNORE INTO show_genre (show_id, genre_id)
-        VALUES (:show_id, :genre_id)'
+        'INSERT INTO show_genre (show_id, genre_id)
+        VALUES (:show_id, :genre_id)
+        ON CONFLICT(show_id, genre_id) DO NOTHING'
     );
 
     $importedShows = 0;
@@ -119,6 +143,7 @@ function import_shows(PDO $pdo): array
             $language = api_text($show['language'] ?? '', 'Unbekannt');
             $status = api_text($show['status'] ?? '', 'Unbekannt');
             $summary = api_text($show['summary'] ?? '');
+            $distribution = show_distribution($show);
 
             if ($externalId === false || $externalId < 1 || $name === '' || $summary === '') {
                 $skippedRows++;
@@ -134,6 +159,10 @@ function import_shows(PDO $pdo): array
                 'summary' => $summary,
                 'image_url' => https_url($show['image']['medium'] ?? null),
                 'source_url' => https_url($show['url'] ?? null),
+                'official_site_url' => $distribution['official_site_url'],
+                'distribution_name' => $distribution['name'],
+                'distribution_type' => $distribution['type'],
+                'distribution_country' => $distribution['country'],
             ]);
 
             $showIdStatement->execute(['external_id' => $externalId]);
@@ -270,6 +299,7 @@ function import_selected_show(PDO $pdo, int $externalId): array
     $episodes = api_get('/shows/' . $externalId . '/episodes');
     $returnedId = filter_var($show['id'] ?? null, FILTER_VALIDATE_INT);
     $name = api_text($show['name'] ?? '');
+    $distribution = show_distribution($show);
 
     if ($returnedId === false || $returnedId !== $externalId || $name === '') {
         throw new RuntimeException('TVmaze hat keinen vollständigen Seriendatensatz geliefert.');
@@ -277,9 +307,11 @@ function import_selected_show(PDO $pdo, int $externalId): array
 
     $showStatement = $pdo->prepare(
         'INSERT INTO shows (
-            external_id, name, language, status, premiered, summary, image_url, source_url
+            external_id, name, language, status, premiered, summary, image_url, source_url,
+            official_site_url, distribution_name, distribution_type, distribution_country
         ) VALUES (
-            :external_id, :name, :language, :status, :premiered, :summary, :image_url, :source_url
+            :external_id, :name, :language, :status, :premiered, :summary, :image_url, :source_url,
+            :official_site_url, :distribution_name, :distribution_type, :distribution_country
         ) ON CONFLICT(external_id) DO UPDATE SET
             name = excluded.name,
             language = excluded.language,
@@ -287,7 +319,11 @@ function import_selected_show(PDO $pdo, int $externalId): array
             premiered = excluded.premiered,
             summary = excluded.summary,
             image_url = excluded.image_url,
-            source_url = excluded.source_url'
+            source_url = excluded.source_url,
+            official_site_url = excluded.official_site_url,
+            distribution_name = excluded.distribution_name,
+            distribution_type = excluded.distribution_type,
+            distribution_country = excluded.distribution_country'
     );
     $genreStatement = $pdo->prepare(
         'INSERT INTO genres (name, slug)
@@ -295,8 +331,9 @@ function import_selected_show(PDO $pdo, int $externalId): array
         ON CONFLICT(name) DO UPDATE SET slug = excluded.slug'
     );
     $relationStatement = $pdo->prepare(
-        'INSERT OR IGNORE INTO show_genre (show_id, genre_id)
-        VALUES (:show_id, :genre_id)'
+        'INSERT INTO show_genre (show_id, genre_id)
+        VALUES (:show_id, :genre_id)
+        ON CONFLICT(show_id, genre_id) DO NOTHING'
     );
     $episodeStatement = $pdo->prepare(
         'INSERT INTO episodes (
@@ -330,6 +367,10 @@ function import_selected_show(PDO $pdo, int $externalId): array
                 $show['image']['original'] ?? $show['image']['medium'] ?? null
             ),
             'source_url' => https_url($show['url'] ?? null),
+            'official_site_url' => $distribution['official_site_url'],
+            'distribution_name' => $distribution['name'],
+            'distribution_type' => $distribution['type'],
+            'distribution_country' => $distribution['country'],
         ]);
         $showId = (int) execute_statement(
             $pdo,
@@ -433,22 +474,22 @@ function seed_nordlicht(PDO $pdo): array
 
     try {
         if ($show === false) {
-            $showStatement = $pdo->prepare(
+            $showId = insert_and_return_id(
+                $pdo,
                 'INSERT INTO shows (
                     name, language, status, premiered, summary, image_url
                 ) VALUES (
                     :name, :language, :status, :premiered, :summary, :image_url
-                )'
+                )',
+                [
+                    'name' => 'Nordlicht',
+                    'language' => 'German',
+                    'status' => 'Running',
+                    'premiered' => '2026-08-07',
+                    'summary' => 'Eine deutschsprachige Mysteryserie über ein rätselhaftes Signal aus dem Norden.',
+                    'image_url' => '/images/nordlicht-poster.png',
+                ]
             );
-            $showStatement->execute([
-                'name' => 'Nordlicht',
-                'language' => 'German',
-                'status' => 'Running',
-                'premiered' => '2026-08-07',
-                'summary' => 'Eine deutschsprachige Mysteryserie über ein rätselhaftes Signal aus dem Norden.',
-                'image_url' => '/images/nordlicht-poster.png',
-            ]);
-            $showId = (int) $pdo->lastInsertId();
         } else {
             $showId = (int) $show['id'];
             execute_statement(
@@ -472,8 +513,9 @@ function seed_nordlicht(PDO $pdo): array
         )->fetchColumn();
         execute_statement(
             $pdo,
-            'INSERT OR IGNORE INTO show_genre (show_id, genre_id)
-            VALUES (:show_id, :genre_id)',
+            'INSERT INTO show_genre (show_id, genre_id)
+            VALUES (:show_id, :genre_id)
+            ON CONFLICT(show_id, genre_id) DO NOTHING',
             ['show_id' => $showId, 'genre_id' => $genreId]
         );
 
