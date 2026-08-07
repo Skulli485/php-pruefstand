@@ -9,13 +9,17 @@ try {
     $pdo = database();
     create_initial_schema($pdo);
     create_comments_schema($pdo);
+    create_tags_schema($pdo);
     $initialResult = import_initial_data($pdo);
     $commentsResult = import_comments($pdo);
+    $tagsResult = seed_post_tags($pdo);
 
     echo 'Datenbank eingerichtet.' . PHP_EOL;
     echo 'Autoren importiert: ' . $initialResult['authors'] . PHP_EOL;
     echo 'Beiträge importiert: ' . $initialResult['posts'] . PHP_EOL;
     echo 'Kommentare importiert: ' . $commentsResult['comments'] . PHP_EOL;
+    echo 'Schlagwörter vorhanden: ' . $tagsResult['tags'] . PHP_EOL;
+    echo 'Neue Schlagwort-Beziehungen: ' . $tagsResult['relations_created'] . PHP_EOL;
     echo 'Übersprungen: ' . ($initialResult['skipped'] + $commentsResult['skipped']) . PHP_EOL;
 } catch (Throwable $error) {
     fwrite(STDERR, 'Einrichtung fehlgeschlagen: ' . $error->getMessage() . PHP_EOL);

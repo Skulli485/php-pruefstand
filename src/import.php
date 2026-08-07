@@ -183,3 +183,88 @@ function import_comments(PDO $pdo): array
         'skipped' => $skippedComments,
     ];
 }
+
+function seed_post_tags(PDO $pdo): array
+{
+    $tagData = [
+        ['name' => 'PHP', 'slug' => 'php'],
+        ['name' => 'Datenbanken', 'slug' => 'datenbanken'],
+        ['name' => 'Sicherheit', 'slug' => 'sicherheit'],
+        ['name' => 'Routing', 'slug' => 'routing'],
+    ];
+
+    $tagPlan = [
+        1 => ['PHP', 'Routing'],
+        2 => ['Datenbanken', 'Sicherheit'],
+        3 => ['PHP', 'Datenbanken'],
+        4 => ['Routing', 'Sicherheit'],
+        5 => ['PHP', 'Sicherheit', 'Routing'],
+    ];
+
+    $tagStatement = $pdo->prepare(
+        'INSERT INTO tags (name, slug)
+        VALUES (:name, :slug)
+        ON CONFLICT(name) DO UPDATE SET slug = excluded.slug'
+    );
+    $relationStatement = $pdo->prepare(
+        'INSERT OR IGNORE INTO post_tag (post_id, tag_id)
+        VALUES (:post_id, :tag_id)'
+    );
+
+    $pdo->beginTransaction();
+
+    try {
+        foreach ($tagData as $tag) {
+            $tagStatement->execute($tag);
+        }
+
+        $tagRows = execute_statement($pdo, 'SELECT id, name FROM tags')->fetchAll();
+        $postRows = execute_statement(
+            $pdo,
+            'SELECT id, external_id FROM posts WHERE external_id IS NOT NULL'
+        )->fetchAll();
+        $tagIds = [];
+        $postIds = [];
+
+        foreach ($tagRows as $tag) {
+            $tagIds[(string) $tag['name']] = (int) $tag['id'];
+        }
+
+        foreach ($postRows as $post) {
+            $postIds[(int) $post['external_id']] = (int) $post['id'];
+        }
+
+        $relationCount = 0;
+
+        foreach ($tagPlan as $externalPostId => $tagNames) {
+            if (!isset($postIds[$externalPostId])) {
+                continue;
+            }
+
+            foreach ($tagNames as $tagName) {
+                if (!isset($tagIds[$tagName])) {
+                    continue;
+                }
+
+                $relationStatement->execute([
+                    'post_id' => $postIds[$externalPostId],
+                    'tag_id' => $tagIds[$tagName],
+                ]);
+                $relationCount += $relationStatement->rowCount();
+            }
+        }
+
+        $pdo->commit();
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        throw $error;
+    }
+
+    return [
+        'tags' => count($tagData),
+        'relations_created' => $relationCount,
+    ];
+}

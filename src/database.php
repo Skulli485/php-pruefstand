@@ -73,3 +73,24 @@ function create_comments_schema(PDO $pdo): void
         )'
     );
 }
+
+function create_tags_schema(PDO $pdo): void
+{
+    execute_statement(
+        $pdo,
+        'CREATE TABLE IF NOT EXISTS tags (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            slug TEXT NOT NULL UNIQUE
+        )'
+    );
+
+    execute_statement(
+        $pdo,
+        'CREATE TABLE IF NOT EXISTS post_tag (
+            post_id INTEGER NOT NULL REFERENCES posts(id),
+            tag_id INTEGER NOT NULL REFERENCES tags(id),
+            PRIMARY KEY (post_id, tag_id)
+        )'
+    );
+}
