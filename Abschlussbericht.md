@@ -37,6 +37,7 @@ Die Daten stammen jetzt aus der öffentlichen [TVmaze-API](https://www.tvmaze.co
 | GET | `/serien/neu` | TVmaze-Suche und manuelles Eingabeformular |
 | POST | `/serien/neu` | validieren, speichern und redirecten |
 | POST | `/serien/importieren` | gewählten TVmaze-Treffer samt Episoden importieren |
+| POST | `/serien/{id}/loeschen` | Serie, Episoden und Genre-Zuordnungen löschen |
 
 ## 6. Datenbanktabellen
 
@@ -131,6 +132,8 @@ Diamant ergänzt:
 - eine Trefferliste mit Poster, Metadaten und eindeutiger Auswahl
 - den automatischen Import von Serie, Genres und Episoden
 - das weiterhin verfügbare manuelle Formular
+- einen klar abgegrenzten Löschbereich auf jeder Detailseite
+- CSRF-Schutz und Bestätigungsdialog für die Löschaktion
 - GET und POST auf derselben Route
 - serverseitige Validierung
 - verständliche Fehlermeldungen und erhaltene Eingaben
@@ -144,6 +147,8 @@ Der Server prüft:
 
 - API-Suchbegriffe auf 2 bis 100 Zeichen
 - die ausgewählte TVmaze-ID als positive Ganzzahl
+- die Lösch-ID als positive Ganzzahl
+- das Lösch-Token gegen die aktive PHP-Sitzung
 - Titel als Pflichtfeld mit 2 bis 150 Zeichen
 - Sprache gegen eine feste Liste erlaubter Werte
 - Status gegen eine feste Liste erlaubter Werte
@@ -183,6 +188,20 @@ GET /serien/neu?api_q=Dark
 
 Ein erneuter Import derselben TVmaze-ID aktualisiert denselben lokalen Datensatz.
 
+Auch das Löschen folgt POST → Redirect → GET:
+
+```text
+GET /serien/{id}
+→ CSRF-Token und Löschformular anzeigen
+→ Benutzer bestätigt die Warnung
+→ POST /serien/{id}/loeschen
+→ ID und CSRF-Token validieren
+→ vorbereitetes DELETE in einer Transaktion
+→ Episoden und Genre-Zuordnungen per ON DELETE CASCADE entfernen
+→ HTTP 303 auf /serien
+→ einmalige Erfolgsmeldung anzeigen
+```
+
 ## 17. Sicherheitsmaßnahmen
 
 - Alle SQL-Anweisungen verwenden `prepare()` und `execute()`.
@@ -190,6 +209,8 @@ Ein erneuter Import derselben TVmaze-ID aktualisiert denselben lokalen Datensatz
 - Routen-IDs werden als positive Integer validiert und danach als Parameter gebunden.
 - API-Import und Formularspeicherung laufen in Transaktionen.
 - Der Browser sendet beim API-Import nur die externe ID; PHP lädt die vertrauenswürdigen Felder erneut direkt von TVmaze.
+- Die destruktive Route akzeptiert nur POST und verlangt ein kryptografisch zufälliges, sitzungsgebundenes CSRF-Token.
+- Das Token wird mit `hash_equals()` geprüft und nach erfolgreichem Löschen erneuert.
 - `PRAGMA foreign_keys = ON` aktiviert die Foreign-Key-Prüfung.
 - UNIQUE-Regeln verhindern doppelte externe Datensätze.
 - Der zusammengesetzte Primärschlüssel verhindert doppelte n:m-Paare.
@@ -231,6 +252,14 @@ Erfolgreich getestet wurden:
 - HTTP 502 mit verständlicher Meldung für eine nicht vorhandene TVmaze-ID
 - HTML-Escaping eines `<script>`-Suchbegriffs
 - HTTP 405 mit `Allow: POST` bei GET auf `/serien/importieren`
+- sichtbarer Gefahrenbereich mit Bestätigungsdialog auf der Detailseite
+- HTTP 403 für fehlende, falsche und als Array gesendete CSRF-Tokens
+- bestehende Serie bleibt nach einem abgewiesenen Löschversuch erhalten
+- HTTP 405 mit `Allow: POST` bei GET auf die Löschroute
+- HTTP 303 auf `/serien` nach erfolgreichem Löschen
+- einmalige, escaped Erfolgsmeldung nach dem Redirect
+- Cascade-Löschung einer temporären Serie, ihrer Episode und ihrer Genre-Zuordnung
+- `PRAGMA foreign_key_check` auch nach dem Löschen ohne Fehler
 - vollständige Posteranzeige mit `object-fit: contain` in der Serienübersicht
 - getrennte, begrenzte Poster- und Textspalten auf der Detailseite
 - Refresh der Detailseite ohne zweiten INSERT
@@ -244,18 +273,15 @@ Ein frischer Setup-Lauf enthält 13 Serien, 1.085 Episoden, 13 Genres und 37 Gen
 - Die TVmaze-Beschreibungen sind überwiegend Englisch. Sie sind verständlicher als die vorherigen Blindtexte, werden aber nicht automatisch ins Deutsche übersetzt.
 - `WARMUP.md` bleibt absichtlich unbeantwortet, damit die Lernfragen selbst bearbeitet werden können.
 
-## 20. Git-Status nach Abschluss und Push
+## 20. Git-Prüfung vor der Abgabe
 
-```text
-On branch main
-Your branch is up to date with 'origin/main'.
-
-nothing to commit, working tree clean
-```
+Der Arbeitsbaum wird nach jedem logischen Commit mit `git status --short` und vor der Abgabe zusätzlich gegen `origin/main` geprüft. Die lokale SQLite-Datenbank bleibt dabei durch `.gitignore` außerhalb der Versionsverwaltung.
 
 ## 21. Commit-Verlauf vor diesem Dokumentationsupdate
 
 ```text
+249708d Add protected series deletion
+4d54e4d Answer PHP warmup questions
 3f176a2 Add TVmaze series search and import
 b6bb512 Polish poster layouts and Nordlicht demo
 387e6d4 Add final series report

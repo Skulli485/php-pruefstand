@@ -32,6 +32,23 @@ POST /serien/importieren
 
 Nur die externe ID kommt aus dem Formular. Poster, Texte, Metadaten, Genres und Episoden werden nicht aus versteckten Feldern übernommen, sondern direkt von den exakten TVmaze-Endpunkten geladen. UNIQUE-Regeln und Upserts verhindern bei einem zweiten Import Duplikate.
 
+## Geschütztes Löschen
+
+```text
+GET /serien/{id}
+  → sitzungsgebundenes CSRF-Token im Löschformular ausgeben
+  → Benutzer bestätigt den Bestätigungsdialog
+
+POST /serien/{id}/loeschen
+  → positive ID und CSRF-Token validieren
+  → Serie mit vorbereitetem DELETE in einer Transaktion löschen
+  → Episoden und Genre-Zuordnungen per ON DELETE CASCADE entfernen
+  → Token erneuern und Erfolgsmeldung in der Sitzung speichern
+  → HTTP 303 auf /serien
+```
+
+Die destruktive Aktion ist nicht über GET erreichbar. Ein fehlendes, falsches oder als Array gesendetes Token führt zu HTTP 403, ohne den Datensatz zu verändern.
+
 ## Validierung
 
 - Titel: 2 bis 150 Zeichen

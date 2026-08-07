@@ -30,6 +30,7 @@ $statement->execute($parameters);
 | `src/routes.php` | Seriendetail und Genres | Routen-ID | Integer-Prüfung und Parameter |
 | `src/routes.php` | Formular-Existenzprüfung | Genre-IDs | vorhandene IDs werden per SELECT geladen und verglichen |
 | `src/routes.php` | INSERT in `shows` und `show_genre` | POST-Werte | vorbereitete INSERTs in Transaktion |
+| `src/routes.php` | DELETE aus `shows` | validierte Routen-ID | vorbereitete DELETE-Anweisung in Transaktion |
 
 ## Wichtige sichere Stellen
 
@@ -41,6 +42,7 @@ $statement->execute($parameters);
 - Die festen Werte `LIMIT 50` und `LIMIT 60` stammen nicht aus Benutzereingaben.
 - Das Formular akzeptiert nur bekannte Sprach-, Status- und Genre-Werte.
 - Alle Transaktionen werden bei Exceptions zurückgerollt.
+- Das Löschen bindet die zuvor als positive Ganzzahl validierte ID an `:id`; abhängige Zeilen entfernt SQLite über Foreign-Key-Cascades.
 - Das wiederholbare Nordlicht-Seeding verwendet Upserts und `INSERT OR IGNORE` statt unsicherer String-Konkatenation.
 
 ## Negativtests
@@ -50,5 +52,7 @@ $statement->execute($parameters);
 - Nicht vorhandene Genre-IDs führen zu HTTP 422.
 - Leere, nullwertige und als Array gesendete TVmaze-IDs führen zu HTTP 422.
 - Ein zweiter Import derselben TVmaze-ID verwendet denselben lokalen Datensatz.
+- Fehlende oder manipulierte CSRF-Tokens verhindern das DELETE bereits vor dem Datenbankzugriff.
+- Der Löschtest entfernt Serie, Episode und `show_genre`-Zeile ohne Foreign-Key-Fehler.
 - XSS-artige Titel und Beschreibungen werden escaped angezeigt.
 - Der Quelltext-Scan findet keine direkten Aufrufe von `PDO::query()` oder `PDO::exec()`.

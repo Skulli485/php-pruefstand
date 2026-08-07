@@ -1,6 +1,6 @@
 # Serienprüfstand
 
-Der Serienprüfstand ist ein vollständiges PHP-Lernprojekt ohne Framework. Die Anwendung sucht Serien bei TVmaze, übernimmt ausgewählte Treffer samt Episoden in SQLite, wertet Beziehungen mit SQL-JOINs aus und erlaubt zusätzlich das sichere Anlegen eigener Serien.
+Der Serienprüfstand ist ein vollständiges PHP-Lernprojekt ohne Framework. Die Anwendung sucht Serien bei TVmaze, übernimmt ausgewählte Treffer samt Episoden in SQLite, wertet Beziehungen mit SQL-JOINs aus und erlaubt zusätzlich das sichere Anlegen und Löschen eigener Serien.
 
 Umgesetzt sind alle Aufgabenstufen von Bronze über Silber und Gold bis Diamant.
 
@@ -10,6 +10,7 @@ Umgesetzt sind alle Aufgabenstufen von Bronze über Silber und Gold bis Diamant.
 - eigener Router und Front Controller
 - HTML5 und responsives CSS ohne Framework
 - Prepared Statements, Transaktionen und Foreign Keys
+- Sitzungsbasierter CSRF-Schutz für destruktive Aktionen
 - GET, POST und POST → Redirect → GET
 - 1:n- und n:m-Beziehungen
 - [TVmaze](https://www.tvmaze.com/api) als externe JSON-Datenquelle
@@ -82,7 +83,7 @@ shows
 
 Die Zwischentabelle `show_genre` speichert jedes Serien-Genre-Paar höchstens einmal. Die Detailroute `/serien/{id}` lädt alle Genres über einen JOIN.
 
-### Diamant – Eingabe
+### Diamant – Eingabe und Löschen
 
 - API-Suchformular unter `/serien/neu?api_q=...`
 - bewusste Auswahl aus bis zu acht TVmaze-Treffern
@@ -94,6 +95,8 @@ Die Zwischentabelle `show_genre` speichert jedes Serien-Genre-Paar höchstens ei
 - Prepared INSERTs und gemeinsame Transaktion
 - eindeutige externe IDs und Upserts gegen Duplikate
 - HTTP 303 auf `/serien/{id}`
+- geschütztes Löschen per POST mit Bestätigungsdialog
+- automatische Cascade-Löschung von Episoden und Genre-Zuordnungen
 
 ## Externe Datenquelle
 
@@ -161,6 +164,7 @@ Die aktive Datenbank entsteht unter `data/serienpruefstand.sqlite` und wird nich
 | GET | `/serien/neu` | API-Suche über `?api_q=` und manuelles Formular | 200, 422 oder 502 |
 | POST | `/serien/neu` | validieren, speichern und umleiten | 303 oder 422 |
 | POST | `/serien/importieren` | ausgewählte TVmaze-Serie samt Episoden importieren | 303, 422 oder 502 |
+| POST | `/serien/{id}/loeschen` | Serie samt abhängigen Datensätzen löschen | 303, 403 oder 404 |
 | GET | `/serien/{id}` | Serie, Genres und Episoden | 200 oder 404 |
 | GET | `/episoden` | 1:n-Auswertung Serien ↔ Episoden | 200 |
 
@@ -172,6 +176,7 @@ PHP prüft:
 
 - API-Suchbegriff mit 2 bis 100 Zeichen
 - ausgewählte TVmaze-ID als positive Ganzzahl
+- Lösch-ID als positive Ganzzahl und CSRF-Token gegen die aktive Sitzung
 - Titel mit 2 bis 150 Zeichen
 - erlaubte Sprache und erlaubten Status
 - optionales Premierendatum im Format `YYYY-MM-DD`
@@ -188,6 +193,8 @@ HTML-Attribute helfen im Browser, ersetzen aber nicht die serverseitige Prüfung
 - API-Import und Formularspeicherung verwenden Transaktionen.
 - Eine ausgewählte externe ID wird serverseitig erneut bei TVmaze aufgelöst.
 - Die UNIQUE-Regel auf `shows.external_id` und Upserts verhindern doppelte Serien und Episoden.
+- Löschen ist ausschließlich per POST und mit einem per `hash_equals()` geprüften CSRF-Token möglich.
+- `ON DELETE CASCADE` entfernt Episoden und Genre-Zuordnungen zusammen mit der Serie.
 - Foreign Keys, UNIQUE-Regeln und zusammengesetzte Primärschlüssel schützen Beziehungen.
 - Alle dynamischen HTML-Ausgaben werden mit `e()` escaped oder kontrolliert als Integer ausgegeben.
 - API-Beschreibungen werden vor dem Speichern von HTML befreit.
@@ -219,7 +226,7 @@ php-pruefstand/
 
 ## Prüfungen
 
-Geprüft werden unter anderem PHP-Syntax, TVmaze-Suche, Einzelimport von „Dark“ mit 26 Episoden, wiederholbarer Import ohne Duplikat, 200-/303-/404-/405-/422-/502-Antworten, Detailansicht, ungültige IDs, Formulargrenzen, falsche Datentypen, XSS-artige und SQL-artige Eingaben sowie die Redirects auf dynamische IDs.
+Geprüft werden unter anderem PHP-Syntax, TVmaze-Suche, Einzelimport, wiederholbarer Import ohne Duplikat, geschütztes Löschen mit Cascade-Regeln, 200-/303-/403-/404-/405-/422-/502-Antworten, Detailansicht, ungültige IDs und Tokens, Formulargrenzen, falsche Datentypen, XSS-artige und SQL-artige Eingaben sowie die Redirects auf dynamische IDs.
 
 ## Screenshot
 
