@@ -32,6 +32,7 @@ function page_start(string $title, string $activeNavigation = ''): void
         '/' => 'Übersicht',
         '/beitraege' => 'Beiträge',
         '/resonanz' => 'Resonanz',
+        '/beitraege/neu' => 'Neuer Beitrag',
     ];
     ?>
     <!doctype html>

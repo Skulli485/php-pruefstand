@@ -159,6 +159,106 @@ function show_resonance(PDO $pdo): void
     page_end();
 }
 
+function show_new_post_form(PDO $pdo): void
+{
+    $authors = execute_statement(
+        $pdo,
+        'SELECT id, name FROM authors ORDER BY name'
+    )->fetchAll();
+    $tags = execute_statement(
+        $pdo,
+        'SELECT id, name FROM tags ORDER BY name'
+    )->fetchAll();
+
+    page_start('Neuer Beitrag', '/beitraege/neu');
+    ?>
+    <section class="form-heading">
+        <h1>Neuen Beitrag anlegen</h1>
+        <p>Der Beitrag wird lokal in SQLite gespeichert.</p>
+    </section>
+
+    <div class="form-layout">
+        <form class="entry-form" method="post" action="/beitraege/neu">
+            <div class="form-field">
+                <label for="author_id">Autor</label>
+                <select id="author_id" name="author_id" required>
+                    <option value="">Bitte auswählen</option>
+                    <?php foreach ($authors as $author): ?>
+                        <option value="<?= (int) $author['id'] ?>">
+                            <?= e($author['name']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="title">Titel</label>
+                <input
+                    id="title"
+                    name="title"
+                    type="text"
+                    required
+                    minlength="5"
+                    maxlength="150"
+                >
+            </div>
+
+            <div class="form-field">
+                <label for="body">Inhalt</label>
+                <textarea
+                    id="body"
+                    name="body"
+                    rows="10"
+                    required
+                    minlength="20"
+                    maxlength="5000"
+                ></textarea>
+            </div>
+
+            <fieldset class="form-field">
+                <legend>Schlagwörter</legend>
+                <div class="checkbox-list">
+                    <?php foreach ($tags as $tag): ?>
+                        <label>
+                            <input
+                                type="checkbox"
+                                name="tag_ids[]"
+                                value="<?= (int) $tag['id'] ?>"
+                            >
+                            <span><?= e($tag['name']) ?></span>
+                        </label>
+                    <?php endforeach; ?>
+                </div>
+            </fieldset>
+
+            <div class="form-actions">
+                <button type="submit">Beitrag speichern</button>
+                <a class="text-link" href="/beitraege">Abbrechen</a>
+            </div>
+        </form>
+
+        <aside class="form-guidance">
+            <h2>Eingabe prüfen</h2>
+            <dl>
+                <div>
+                    <dt>Pflichtfelder</dt>
+                    <dd>Autor, Titel, Inhalt und mindestens ein Schlagwort.</dd>
+                </div>
+                <div>
+                    <dt>Titel</dt>
+                    <dd>5 bis 150 Zeichen.</dd>
+                </div>
+                <div>
+                    <dt>Inhalt</dt>
+                    <dd>20 bis 5000 Zeichen.</dd>
+                </div>
+            </dl>
+        </aside>
+    </div>
+    <?php
+    page_end();
+}
+
 function show_post(PDO $pdo, array $parameters): void
 {
     $id = filter_var($parameters['id'] ?? null, FILTER_VALIDATE_INT);

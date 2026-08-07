@@ -326,6 +326,100 @@ select {
     font-weight: 800;
 }
 
+.form-heading p {
+    color: var(--muted);
+    font-family: var(--mono);
+}
+
+.form-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(16rem, 1fr);
+    gap: clamp(2rem, 5vw, 4rem);
+    margin-top: 2.5rem;
+}
+
+.entry-form {
+    padding: clamp(1.25rem, 4vw, 2.5rem);
+    border: 1px solid var(--line);
+}
+
+.form-field {
+    display: grid;
+    grid-template-columns: minmax(8rem, .35fr) minmax(0, 1fr);
+    gap: 1.5rem;
+    align-items: start;
+    margin: 0 0 1.75rem;
+    padding: 0;
+    border: 0;
+}
+
+.form-field > label,
+.form-field > legend {
+    padding-top: .75rem;
+    font-family: var(--condensed);
+    font-size: 1.05rem;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.checkbox-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem 1.5rem;
+    padding-top: .6rem;
+}
+
+.checkbox-list label {
+    display: flex;
+    gap: .55rem;
+    align-items: center;
+    cursor: pointer;
+}
+
+.checkbox-list input {
+    width: 1.1rem;
+    height: 1.1rem;
+    accent-color: var(--accent);
+}
+
+.form-actions {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+    margin-left: calc(35% + 1.5rem);
+}
+
+.form-guidance {
+    border-top: 1px solid var(--line);
+}
+
+.form-guidance h2 {
+    margin-top: 1rem;
+}
+
+.form-guidance dl,
+.form-guidance dd {
+    margin: 0;
+}
+
+.form-guidance dl div {
+    padding-block: 1rem;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.form-guidance dt {
+    color: var(--accent);
+    font-family: var(--condensed);
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.form-guidance dd {
+    margin-top: .35rem;
+    color: #c6cdcf;
+}
+
 .post-body {
     max-width: 58rem;
     padding-block: 2rem;
@@ -422,6 +516,10 @@ code {
     .post-excerpt {
         grid-column: 2 / -1;
     }
+
+    .form-layout {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media (max-width: 640px) {
@@ -462,5 +560,21 @@ code {
     .post-author,
     .post-excerpt {
         grid-column: 2;
+    }
+
+    .form-field {
+        grid-template-columns: 1fr;
+        gap: .45rem;
+    }
+
+    .form-field > label,
+    .form-field > legend {
+        padding-top: 0;
+    }
+
+    .form-actions {
+        align-items: flex-start;
+        flex-direction: column;
+        margin-left: 0;
     }
 }
