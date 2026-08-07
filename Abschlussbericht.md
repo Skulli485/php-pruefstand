@@ -24,7 +24,7 @@ Danach ist die Anwendung unter <http://localhost:8000> erreichbar.
 
 Der ursprüngliche Stand verwendete Blindtexte von JSONPlaceholder. Diese Texte waren inhaltlich schwer verständlich und passten nicht gut zu einer vorzeigbaren Lernanwendung. Deshalb wurde der Prüfstand auf Serien umgestellt.
 
-Die Daten stammen jetzt aus der öffentlichen [TVmaze-API](https://www.tvmaze.com/api). Importiert werden ausschließlich Serien, deren Sprache von TVmaze als Englisch oder Deutsch angegeben ist. Beschreibungen werden von HTML befreit und als Klartext gespeichert.
+Die Daten stammen jetzt aus der öffentlichen [TVmaze-API](https://www.tvmaze.com/api). Das automatische Setup wählt englisch- oder deutschsprachige Serien aus. Über die neue Titelsuche kann anschließend bewusst auch jede andere bei TVmaze geführte Serie ausgewählt werden. Beschreibungen werden von HTML befreit und als Klartext gespeichert.
 
 ## 5. Routen
 
@@ -34,8 +34,9 @@ Die Daten stammen jetzt aus der öffentlichen [TVmaze-API](https://www.tvmaze.co
 | GET | `/serien` | Serienliste und Suche mit `?q=` |
 | GET | `/serien/{id}` | Serie mit Genres und Episoden |
 | GET | `/episoden` | 1:n-Auswertung Serien ↔ Episoden |
-| GET | `/serien/neu` | Eingabeformular |
+| GET | `/serien/neu` | TVmaze-Suche und manuelles Eingabeformular |
 | POST | `/serien/neu` | validieren, speichern und redirecten |
+| POST | `/serien/importieren` | gewählten TVmaze-Treffer samt Episoden importieren |
 
 ## 6. Datenbanktabellen
 
@@ -85,6 +86,8 @@ Der zusammengesetzte Primärschlüssel verhindert doppelte Genre-Zuordnungen.
 | Endpoint | Verwendung |
 | --- | --- |
 | `/shows?page=0` | Serien, Poster, Sprache, Status, Beschreibung und Genres |
+| `/search/shows?q={titel}` | passende Serien suchen und zur Auswahl anzeigen |
+| `/shows/{id}` | ausgewählte Serie mit Poster und Genres exakt laden |
 | `/shows/{id}/episodes` | Episoden der zuvor importierten Serien |
 
 Der Abruf erfolgt mit PHP-cURL, einem eindeutigen User-Agent und kontrollierter Behandlung von HTTP- und JSON-Fehlern. TVmaze wird im Footer und über Links auf den Detailseiten als Quelle genannt.
@@ -124,7 +127,10 @@ Gold ergänzt:
 
 Diamant ergänzt:
 
-- das Formular unter `/serien/neu`
+- die Suche nach Serientiteln unter `/serien/neu`
+- eine Trefferliste mit Poster, Metadaten und eindeutiger Auswahl
+- den automatischen Import von Serie, Genres und Episoden
+- das weiterhin verfügbare manuelle Formular
 - GET und POST auf derselben Route
 - serverseitige Validierung
 - verständliche Fehlermeldungen und erhaltene Eingaben
@@ -136,6 +142,8 @@ Diamant ergänzt:
 
 Der Server prüft:
 
+- API-Suchbegriffe auf 2 bis 100 Zeichen
+- die ausgewählte TVmaze-ID als positive Ganzzahl
 - Titel als Pflichtfeld mit 2 bis 150 Zeichen
 - Sprache gegen eine feste Liste erlaubter Werte
 - Status gegen eine feste Liste erlaubter Werte
@@ -161,12 +169,27 @@ POST /serien/neu
 
 Ein Refresh wiederholt nur die GET-Anfrage. Der Datensatz wird dadurch nicht doppelt gespeichert.
 
+Der automatische Import folgt ebenfalls POST → Redirect → GET:
+
+```text
+GET /serien/neu?api_q=Dark
+→ TVmaze-Treffer anzeigen
+→ Benutzer wählt die genaue Serie
+→ POST /serien/importieren mit der TVmaze-ID
+→ PHP lädt /shows/{id} und /shows/{id}/episodes
+→ Upserts in shows, genres, show_genre und episodes
+→ HTTP 303 auf /serien/{lokale-id}?imported=1
+```
+
+Ein erneuter Import derselben TVmaze-ID aktualisiert denselben lokalen Datensatz.
+
 ## 17. Sicherheitsmaßnahmen
 
 - Alle SQL-Anweisungen verwenden `prepare()` und `execute()`.
 - Variable Werte werden nicht an SQL-Strings geklebt.
 - Routen-IDs werden als positive Integer validiert und danach als Parameter gebunden.
 - API-Import und Formularspeicherung laufen in Transaktionen.
+- Der Browser sendet beim API-Import nur die externe ID; PHP lädt die vertrauenswürdigen Felder erneut direkt von TVmaze.
 - `PRAGMA foreign_keys = ON` aktiviert die Foreign-Key-Prüfung.
 - UNIQUE-Regeln verhindern doppelte externe Datensätze.
 - Der zusammengesetzte Primärschlüssel verhindert doppelte n:m-Paare.
@@ -199,12 +222,21 @@ Erfolgreich getestet wurden:
 - Array statt erwartetem Titel ohne PHP-Warning
 - gültiger POST mit HTTP 303 auf die dynamische ID `/serien/13`
 - Detailseite der lokal angelegten deutschen Beispielserie „Nordlicht“
+- TVmaze-Suche nach „Dark“ mit acht unterscheidbaren Treffern
+- Einzelimport von „Dark“ mit Poster, Genres und 26 Episoden
+- HTTP 303 auf `/serien/15?imported=1` in der lokalen Testdatenbank
+- zweiter Import von „Dark“ auf dieselbe lokale ID und weiterhin 26 Episoden
+- Kennzeichnung bereits importierter Suchtreffer als „Bereits vorhanden“
+- HTTP 422 für leere, nullwertige und als Array gesendete TVmaze-IDs
+- HTTP 502 mit verständlicher Meldung für eine nicht vorhandene TVmaze-ID
+- HTML-Escaping eines `<script>`-Suchbegriffs
+- HTTP 405 mit `Allow: POST` bei GET auf `/serien/importieren`
 - vollständige Posteranzeige mit `object-fit: contain` in der Serienübersicht
 - getrennte, begrenzte Poster- und Textspalten auf der Detailseite
 - Refresh der Detailseite ohne zweiten INSERT
 - Serverprotokoll ohne Warnings, Fatals oder ungefangene Exceptions
 
-Nach dem aktuellen Setup enthält die lokale Testdatenbank 13 Serien, 1.085 Episoden, 13 Genres und 37 Genre-Beziehungen. Darin enthalten sind zwölf TVmaze-Serien und die lokale Beispielserie „Nordlicht“ mit vier Episoden. Weitere lokale Einträge werden durch das Setup nicht gelöscht.
+Ein frischer Setup-Lauf enthält 13 Serien, 1.085 Episoden, 13 Genres und 37 Genre-Beziehungen. Darin enthalten sind zwölf TVmaze-Serien und die lokale Beispielserie „Nordlicht“ mit vier Episoden. Über die neue Suche importierte Serien kommen hinzu und bleiben bei weiteren Setup-Läufen erhalten.
 
 ## 19. Bekannte offene Punkte
 
@@ -224,6 +256,7 @@ nothing to commit, working tree clean
 ## 21. Commit-Verlauf vor diesem Dokumentationsupdate
 
 ```text
+3f176a2 Add TVmaze series search and import
 b6bb512 Polish poster layouts and Nordlicht demo
 387e6d4 Add final series report
 78402df Update documentation for series project
@@ -240,8 +273,6 @@ f251118 Add second external data source
 aa909f9 Add project README
 888f2a7 Initial project setup
 ```
-
-Der Commit dieses Abschlussberichts kommt anschließend als eigener Dokumentationsschritt hinzu.
 
 ## Was sollte ich meinem Dozenten erklären können?
 

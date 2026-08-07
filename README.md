@@ -1,6 +1,6 @@
 # Serienprüfstand
 
-Der Serienprüfstand ist ein vollständiges PHP-Lernprojekt ohne Framework. Die Anwendung importiert echte Serien und Episoden von TVmaze, speichert sie in SQLite, wertet Beziehungen mit SQL-JOINs aus und erlaubt das sichere Anlegen eigener Serien.
+Der Serienprüfstand ist ein vollständiges PHP-Lernprojekt ohne Framework. Die Anwendung sucht Serien bei TVmaze, übernimmt ausgewählte Treffer samt Episoden in SQLite, wertet Beziehungen mit SQL-JOINs aus und erlaubt zusätzlich das sichere Anlegen eigener Serien.
 
 Umgesetzt sind alle Aufgabenstufen von Bronze über Silber und Gold bis Diamant.
 
@@ -84,12 +84,15 @@ Die Zwischentabelle `show_genre` speichert jedes Serien-Genre-Paar höchstens ei
 
 ### Diamant – Eingabe
 
-- GET-Formular unter `/serien/neu`
+- API-Suchformular unter `/serien/neu?api_q=...`
+- bewusste Auswahl aus bis zu acht TVmaze-Treffern
+- automatischer Import über `POST /serien/importieren`
+- zusätzlich ein manuelles Formular unter `/serien/neu`
 - POST-Verarbeitung auf derselben Route
 - serverseitige Prüfung aller Werte und Genre-IDs
 - erhaltene und escaped Eingaben bei Fehlern
 - Prepared INSERTs und gemeinsame Transaktion
-- neue ID über `lastInsertId()`
+- eindeutige externe IDs und Upserts gegen Duplikate
 - HTTP 303 auf `/serien/{id}`
 
 ## Externe Datenquelle
@@ -99,9 +102,11 @@ Die öffentliche API stammt von [TVmaze](https://www.tvmaze.com/api):
 | Endpoint | Gespeicherte Daten | Lokale Tabellen |
 | --- | --- | --- |
 | `/shows?page=0` | Titel, Sprache, Status, Premiere, Beschreibung, Poster, Genres | `shows`, `genres`, `show_genre` |
+| `/search/shows?q={titel}` | bis zu acht Suchtreffer zur Auswahl | noch keine Speicherung |
+| `/shows/{id}` | vollständige Daten der ausgewählten Serie | `shows`, `genres`, `show_genre` |
 | `/shows/{id}/episodes` | Titel, Staffel, Nummer, Datum, Laufzeit, Beschreibung | `episodes` |
 
-Die HTML-Fragmente in API-Beschreibungen werden beim Import entfernt. Gespeichert werden nur Klartext und geprüfte HTTPS-URLs. TVmaze wird im Footer und auf externen Detailseiten als Quelle verlinkt.
+Nach der Auswahl sendet das Formular nur die TVmaze-ID. PHP lädt die Serie und ihre Episoden daraufhin selbst von den exakten Endpoints; Daten aus versteckten Formularfeldern werden nicht vertraut. Die HTML-Fragmente in API-Beschreibungen werden beim Import entfernt. Gespeichert werden nur Klartext und geprüfte HTTPS-URLs. TVmaze wird im Footer und auf externen Detailseiten als Quelle verlinkt.
 
 „Nordlicht“ ist ein lokaler, reproduzierbarer Beispieldatensatz. Das textfreie Poster wurde eigens für die fiktive Serie erzeugt und liegt unter `public/images/nordlicht-poster.png`; die vier lokalen Episoden demonstrieren dieselbe 1:n-Beziehung wie die importierten TVmaze-Daten.
 
@@ -153,8 +158,9 @@ Die aktive Datenbank entsteht unter `data/serienpruefstand.sqlite` und wird nich
 | --- | --- | --- | --- |
 | GET | `/` | Übersicht und Datenbestand | 200 |
 | GET | `/serien` | Serienliste und Suche über `?q=` | 200 |
-| GET | `/serien/neu` | Eingabeformular | 200 |
+| GET | `/serien/neu` | API-Suche über `?api_q=` und manuelles Formular | 200, 422 oder 502 |
 | POST | `/serien/neu` | validieren, speichern und umleiten | 303 oder 422 |
+| POST | `/serien/importieren` | ausgewählte TVmaze-Serie samt Episoden importieren | 303, 422 oder 502 |
 | GET | `/serien/{id}` | Serie, Genres und Episoden | 200 oder 404 |
 | GET | `/episoden` | 1:n-Auswertung Serien ↔ Episoden | 200 |
 
@@ -164,6 +170,8 @@ Eine bekannte Route mit einer nicht unterstützten Methode antwortet mit HTTP 40
 
 PHP prüft:
 
+- API-Suchbegriff mit 2 bis 100 Zeichen
+- ausgewählte TVmaze-ID als positive Ganzzahl
 - Titel mit 2 bis 150 Zeichen
 - erlaubte Sprache und erlaubten Status
 - optionales Premierendatum im Format `YYYY-MM-DD`
@@ -178,6 +186,8 @@ HTML-Attribute helfen im Browser, ersetzen aber nicht die serverseitige Prüfung
 - SQL läuft ausschließlich über `prepare()` und `execute()`.
 - GET-, POST-, API- und Routenwerte werden nie in SQL-Strings eingesetzt.
 - API-Import und Formularspeicherung verwenden Transaktionen.
+- Eine ausgewählte externe ID wird serverseitig erneut bei TVmaze aufgelöst.
+- Die UNIQUE-Regel auf `shows.external_id` und Upserts verhindern doppelte Serien und Episoden.
 - Foreign Keys, UNIQUE-Regeln und zusammengesetzte Primärschlüssel schützen Beziehungen.
 - Alle dynamischen HTML-Ausgaben werden mit `e()` escaped oder kontrolliert als Integer ausgegeben.
 - API-Beschreibungen werden vor dem Speichern von HTML befreit.
@@ -209,7 +219,7 @@ php-pruefstand/
 
 ## Prüfungen
 
-Geprüft werden unter anderem PHP-Syntax, wiederholbarer Import, 200-/303-/404-/405-/422-Antworten, Suche, Detailansicht, ungültige IDs, Formulargrenzen, falsche Datentypen, XSS-artige und SQL-artige Eingaben sowie der Redirect auf die neu erzeugte ID.
+Geprüft werden unter anderem PHP-Syntax, TVmaze-Suche, Einzelimport von „Dark“ mit 26 Episoden, wiederholbarer Import ohne Duplikat, 200-/303-/404-/405-/422-/502-Antworten, Detailansicht, ungültige IDs, Formulargrenzen, falsche Datentypen, XSS-artige und SQL-artige Eingaben sowie die Redirects auf dynamische IDs.
 
 ## Screenshot
 

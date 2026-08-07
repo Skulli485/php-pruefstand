@@ -17,6 +17,21 @@ GET /serien/{neue-id}
   → neue Detailseite anzeigen
 ```
 
+## Automatischer API-Import
+
+```text
+GET /serien/neu?api_q={titel}
+  → TVmaze-Treffer anzeigen
+
+POST /serien/importieren
+  → externe ID als positive Ganzzahl validieren
+  → Serie und Episoden serverseitig erneut von TVmaze laden
+  → Serie, Genres, Beziehungen und Episoden in einer Transaktion upserten
+  → HTTP 303 auf /serien/{lokale-id}?imported=1
+```
+
+Nur die externe ID kommt aus dem Formular. Poster, Texte, Metadaten, Genres und Episoden werden nicht aus versteckten Feldern übernommen, sondern direkt von den exakten TVmaze-Endpunkten geladen. UNIQUE-Regeln und Upserts verhindern bei einem zweiten Import Duplikate.
+
 ## Validierung
 
 - Titel: 2 bis 150 Zeichen
