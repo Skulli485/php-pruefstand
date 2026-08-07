@@ -24,14 +24,14 @@ Danach ist die Anwendung unter <http://localhost:8000> erreichbar.
 
 Der ursprüngliche Stand verwendete Blindtexte von JSONPlaceholder. Diese Texte waren inhaltlich schwer verständlich und passten nicht gut zu einer vorzeigbaren Lernanwendung. Deshalb wurde der Prüfstand auf Serien umgestellt.
 
-Die Daten stammen jetzt aus der öffentlichen [TVmaze-API](https://www.tvmaze.com/api). Das automatische Setup wählt englisch- oder deutschsprachige Serien aus. Über die neue Titelsuche kann anschließend bewusst auch jede andere bei TVmaze geführte Serie ausgewählt werden. Beschreibungen werden von HTML befreit und als Klartext gespeichert.
+Die Daten stammen jetzt aus der öffentlichen [TVmaze-API](https://www.tvmaze.com/api). Das automatische Setup wählt englisch- oder deutschsprachige Serien aus. Die normale Suche prüft zuerst den lokalen Katalog und zeigt bei fehlendem exaktem Titel zusätzlich passende TVmaze-Treffer an. Von dort kann jede gewünschte Serie bewusst importiert werden. Beschreibungen werden von HTML befreit und als Klartext gespeichert.
 
 ## 5. Routen
 
 | Methode | Route | Funktion |
 | --- | --- | --- |
 | GET | `/` | Übersicht und Datenbestand |
-| GET | `/serien` | Serienliste und Suche mit `?q=` |
+| GET | `/serien` | lokale Suche mit Online-Fallback über `?q=` |
 | GET | `/serien/{id}` | Serie mit Genres und Episoden |
 | GET | `/episoden` | 1:n-Auswertung Serien ↔ Episoden |
 | GET | `/serien/neu` | TVmaze-Suche und manuelles Eingabeformular |
@@ -93,6 +93,8 @@ Der zusammengesetzte Primärschlüssel verhindert doppelte Genre-Zuordnungen.
 
 Der Abruf erfolgt mit PHP-cURL, einem eindeutigen User-Agent und kontrollierter Behandlung von HTTP- und JSON-Fehlern. TVmaze wird im Footer und über Links auf den Detailseiten als Quelle genannt.
 
+Zusätzlich werden `network`, `webChannel` und `officialSite` aus dem Seriendatensatz gespeichert. Network beziehungsweise Web Channel beschreiben den von TVmaze geführten aktuellen/letzten Ausstrahlungskanal, nicht automatisch alle derzeit buchbaren Streamingdienste. Die Detailseite zeigt deshalb einen transparenten Hinweis und verlinkt zur länderabhängigen Anbieterprüfung auf TVmaze.
+
 ## 11. Bronze
 
 Bronze enthält:
@@ -129,8 +131,10 @@ Gold ergänzt:
 Diamant ergänzt:
 
 - die Suche nach Serientiteln unter `/serien/neu`
+- den Online-Fallback in der normalen Suche `/serien?q=...`
 - eine Trefferliste mit Poster, Metadaten und eindeutiger Auswahl
 - den automatischen Import von Serie, Genres und Episoden
+- einen „Wo ansehen?“-Bereich mit Sender-/Webkanal und geprüften externen Links
 - das weiterhin verfügbare manuelle Formular
 - einen klar abgegrenzten Löschbereich auf jeder Detailseite
 - CSRF-Schutz und Bestätigungsdialog für die Löschaktion
@@ -147,6 +151,7 @@ Der Server prüft:
 
 - API-Suchbegriffe auf 2 bis 100 Zeichen
 - die ausgewählte TVmaze-ID als positive Ganzzahl
+- das Import-Token gegen die aktive PHP-Sitzung
 - die Lösch-ID als positive Ganzzahl
 - das Lösch-Token gegen die aktive PHP-Sitzung
 - Titel als Pflichtfeld mit 2 bis 150 Zeichen
@@ -183,6 +188,7 @@ GET /serien/neu?api_q=Dark
 → POST /serien/importieren mit der TVmaze-ID
 → PHP lädt /shows/{id} und /shows/{id}/episodes
 → Upserts in shows, genres, show_genre und episodes
+→ Sender-/Webkanal und offizielle Serienseite speichern
 → HTTP 303 auf /serien/{lokale-id}?imported=1
 ```
 
@@ -209,6 +215,7 @@ GET /serien/{id}
 - Routen-IDs werden als positive Integer validiert und danach als Parameter gebunden.
 - API-Import und Formularspeicherung laufen in Transaktionen.
 - Der Browser sendet beim API-Import nur die externe ID; PHP lädt die vertrauenswürdigen Felder erneut direkt von TVmaze.
+- Der Online-Import verlangt zusätzlich ein gültiges, sitzungsgebundenes CSRF-Token.
 - Die destruktive Route akzeptiert nur POST und verlangt ein kryptografisch zufälliges, sitzungsgebundenes CSRF-Token.
 - Das Token wird mit `hash_equals()` geprüft und nach erfolgreichem Löschen erneuert.
 - `PRAGMA foreign_keys = ON` aktiviert die Foreign-Key-Prüfung.
@@ -244,8 +251,14 @@ Erfolgreich getestet wurden:
 - gültiger POST mit HTTP 303 auf die dynamische ID `/serien/13`
 - Detailseite der lokal angelegten deutschen Beispielserie „Nordlicht“
 - TVmaze-Suche nach „Dark“ mit acht unterscheidbaren Treffern
+- Hauptsuche zeigt TVmaze-Treffer, wenn „Dark“ nicht als exakter lokaler Titel vorhanden ist
+- exakter lokaler Treffer „Arrow“ überspringt die Online-Suche
 - Einzelimport von „Dark“ mit Poster, Genres und 26 Episoden
-- HTTP 303 auf `/serien/15?imported=1` in der lokalen Testdatenbank
+- Speicherung von Netflix als TVmaze-Webkanal und der offiziellen Netflix-URL
+- „Wo ansehen?“-Bereich mit Anbieterhinweis, TVmaze-Link und sicherem `rel="noopener noreferrer"`
+- fehlendes Import-CSRF-Token führt zu HTTP 403
+- kurzer Suchbegriff und vollständig unbekannter Online-Suchbegriff erhalten verständliche Zustände
+- HTTP 303 auf `/serien/{lokale-id}?imported=1`
 - zweiter Import von „Dark“ auf dieselbe lokale ID und weiterhin 26 Episoden
 - Kennzeichnung bereits importierter Suchtreffer als „Bereits vorhanden“
 - HTTP 422 für leere, nullwertige und als Array gesendete TVmaze-IDs
@@ -271,6 +284,7 @@ Ein frischer Setup-Lauf enthält 13 Serien, 1.085 Episoden, 13 Genres und 37 Gen
 
 - Ein automatisierter Nachher-Screenshot fehlt, weil die installierte In-App-Browser-Verbindung in der Testumgebung keine verfügbaren Browser meldete. Die vom Benutzer bereitgestellten Vorher-Screenshots dienten als Fehlerreferenz.
 - Die TVmaze-Beschreibungen sind überwiegend Englisch. Sie sind verständlicher als die vorherigen Blindtexte, werden aber nicht automatisch ins Deutsche übersetzt.
+- Die öffentliche TVmaze-API liefert keine vollständige aktuelle Streaming-Verfügbarkeit pro Land. Angezeigt werden deshalb der TVmaze-Sender/Webkanal und ein Link zur aktuellen, länderabhängigen Anbieterprüfung auf der TVmaze-Seite.
 - `WARMUP.md` bleibt absichtlich unbeantwortet, damit die Lernfragen selbst bearbeitet werden können.
 
 ## 20. Git-Prüfung vor der Abgabe
@@ -280,6 +294,8 @@ Der Arbeitsbaum wird nach jedem logischen Commit mit `git status --short` und vo
 ## 21. Commit-Verlauf vor diesem Dokumentationsupdate
 
 ```text
+0d41b77 Add online search fallback and watch links
+d0145b5 Document protected series deletion
 249708d Add protected series deletion
 4d54e4d Answer PHP warmup questions
 3f176a2 Add TVmaze series search and import

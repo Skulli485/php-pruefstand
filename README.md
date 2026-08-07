@@ -1,6 +1,6 @@
 # Serienprüfstand
 
-Der Serienprüfstand ist ein vollständiges PHP-Lernprojekt ohne Framework. Die Anwendung sucht Serien bei TVmaze, übernimmt ausgewählte Treffer samt Episoden in SQLite, wertet Beziehungen mit SQL-JOINs aus und erlaubt zusätzlich das sichere Anlegen und Löschen eigener Serien.
+Der Serienprüfstand ist ein vollständiges PHP-Lernprojekt ohne Framework. Die Anwendung durchsucht zuerst den lokalen Katalog, ergänzt bei fehlendem exaktem Titel passende TVmaze-Treffer und übernimmt ausgewählte Serien samt Episoden in SQLite. Detailseiten zeigen außerdem Sender-/Webkanal-Hinweise und Links zur aktuellen Anbieterprüfung.
 
 Umgesetzt sind alle Aufgabenstufen von Bronze über Silber und Gold bis Diamant.
 
@@ -87,6 +87,7 @@ Die Zwischentabelle `show_genre` speichert jedes Serien-Genre-Paar höchstens ei
 
 - API-Suchformular unter `/serien/neu?api_q=...`
 - bewusste Auswahl aus bis zu acht TVmaze-Treffern
+- automatischer Online-Fallback direkt in der normalen Serien-Suche
 - automatischer Import über `POST /serien/importieren`
 - zusätzlich ein manuelles Formular unter `/serien/neu`
 - POST-Verarbeitung auf derselben Route
@@ -95,6 +96,7 @@ Die Zwischentabelle `show_genre` speichert jedes Serien-Genre-Paar höchstens ei
 - Prepared INSERTs und gemeinsame Transaktion
 - eindeutige externe IDs und Upserts gegen Duplikate
 - HTTP 303 auf `/serien/{id}`
+- Sender-/Webkanal und Anbieterlinks auf der Detailseite
 - geschütztes Löschen per POST mit Bestätigungsdialog
 - automatische Cascade-Löschung von Episoden und Genre-Zuordnungen
 
@@ -109,7 +111,9 @@ Die öffentliche API stammt von [TVmaze](https://www.tvmaze.com/api):
 | `/shows/{id}` | vollständige Daten der ausgewählten Serie | `shows`, `genres`, `show_genre` |
 | `/shows/{id}/episodes` | Titel, Staffel, Nummer, Datum, Laufzeit, Beschreibung | `episodes` |
 
-Nach der Auswahl sendet das Formular nur die TVmaze-ID. PHP lädt die Serie und ihre Episoden daraufhin selbst von den exakten Endpoints; Daten aus versteckten Formularfeldern werden nicht vertraut. Die HTML-Fragmente in API-Beschreibungen werden beim Import entfernt. Gespeichert werden nur Klartext und geprüfte HTTPS-URLs. TVmaze wird im Footer und auf externen Detailseiten als Quelle verlinkt.
+Nach der Auswahl sendet das Formular nur die TVmaze-ID und ein sitzungsgebundenes CSRF-Token. PHP lädt die Serie und ihre Episoden daraufhin selbst von den exakten Endpoints; Daten aus versteckten Formularfeldern werden nicht vertraut. Die HTML-Fragmente in API-Beschreibungen werden beim Import entfernt. Gespeichert werden nur Klartext und geprüfte HTTPS-URLs. TVmaze wird im Footer und auf externen Detailseiten als Quelle verlinkt.
+
+TVmaze liefert in der öffentlichen API den aktuellen beziehungsweise zuletzt geführten Sender oder Web-/Streaming-Kanal, aber keine vollständige länderspezifische Liste aller heutigen Streaming-Angebote. Die Detailseite kennzeichnet diese Einschränkung und verlinkt deshalb zusätzlich auf die TVmaze-Serienseite. Dort können – abhängig von Land und Serie – aktuelle „Watch now“-Angebote angezeigt werden. Siehe [TVmaze-Erklärung zu Network und Web Channel](https://www.tvmaze.com/faq/13/shows).
 
 „Nordlicht“ ist ein lokaler, reproduzierbarer Beispieldatensatz. Das textfreie Poster wurde eigens für die fiktive Serie erzeugt und liegt unter `public/images/nordlicht-poster.png`; die vier lokalen Episoden demonstrieren dieselbe 1:n-Beziehung wie die importierten TVmaze-Daten.
 
@@ -126,6 +130,8 @@ Die aktive Datenbank entsteht unter `data/serienpruefstand.sqlite` und wird nich
 | `name`, `language`, `status`, `summary` | `NOT NULL` |
 | `premiered` | optionales Datum |
 | `image_url`, `source_url` | geprüfte externe URLs oder leer |
+| `official_site_url` | geprüfte HTTPS-URL der offiziellen Serienseite oder leer |
+| `distribution_name`, `distribution_type`, `distribution_country` | Sender-/Webkanal-Hinweis von TVmaze |
 | `created_at` | Standardwert `CURRENT_TIMESTAMP` |
 
 ### `episodes`
@@ -160,7 +166,7 @@ Die aktive Datenbank entsteht unter `data/serienpruefstand.sqlite` und wird nich
 | Methode | Route | Aufgabe | Status |
 | --- | --- | --- | --- |
 | GET | `/` | Übersicht und Datenbestand | 200 |
-| GET | `/serien` | Serienliste und Suche über `?q=` | 200 |
+| GET | `/serien` | lokale Suche und bei fehlendem exaktem Titel TVmaze-Fallback über `?q=` | 200 |
 | GET | `/serien/neu` | API-Suche über `?api_q=` und manuelles Formular | 200, 422 oder 502 |
 | POST | `/serien/neu` | validieren, speichern und umleiten | 303 oder 422 |
 | POST | `/serien/importieren` | ausgewählte TVmaze-Serie samt Episoden importieren | 303, 422 oder 502 |
@@ -176,6 +182,7 @@ PHP prüft:
 
 - API-Suchbegriff mit 2 bis 100 Zeichen
 - ausgewählte TVmaze-ID als positive Ganzzahl
+- Import-CSRF-Token gegen die aktive Sitzung
 - Lösch-ID als positive Ganzzahl und CSRF-Token gegen die aktive Sitzung
 - Titel mit 2 bis 150 Zeichen
 - erlaubte Sprache und erlaubten Status
@@ -192,6 +199,7 @@ HTML-Attribute helfen im Browser, ersetzen aber nicht die serverseitige Prüfung
 - GET-, POST-, API- und Routenwerte werden nie in SQL-Strings eingesetzt.
 - API-Import und Formularspeicherung verwenden Transaktionen.
 - Eine ausgewählte externe ID wird serverseitig erneut bei TVmaze aufgelöst.
+- Auch das Hinzufügen aus Online-Suchergebnissen ist CSRF-geschützt.
 - Die UNIQUE-Regel auf `shows.external_id` und Upserts verhindern doppelte Serien und Episoden.
 - Löschen ist ausschließlich per POST und mit einem per `hash_equals()` geprüften CSRF-Token möglich.
 - `ON DELETE CASCADE` entfernt Episoden und Genre-Zuordnungen zusammen mit der Serie.
@@ -226,7 +234,7 @@ php-pruefstand/
 
 ## Prüfungen
 
-Geprüft werden unter anderem PHP-Syntax, TVmaze-Suche, Einzelimport, wiederholbarer Import ohne Duplikat, geschütztes Löschen mit Cascade-Regeln, 200-/303-/403-/404-/405-/422-/502-Antworten, Detailansicht, ungültige IDs und Tokens, Formulargrenzen, falsche Datentypen, XSS-artige und SQL-artige Eingaben sowie die Redirects auf dynamische IDs.
+Geprüft werden unter anderem PHP-Syntax, lokaler Exakttreffer ohne API-Fallback, Online-Treffer bei fehlendem lokalen Titel, CSRF-geschützter Einzelimport, persistierter Webkanal, Anbieterlinks, wiederholbarer Import ohne Duplikat, geschütztes Löschen mit Cascade-Regeln, 200-/303-/403-/404-/405-/422-/502-Antworten, ungültige IDs und Tokens, Formulargrenzen sowie XSS-artige und SQL-artige Eingaben.
 
 ## Screenshot
 

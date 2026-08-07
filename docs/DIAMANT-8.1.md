@@ -12,6 +12,8 @@ Die GET-Route `/serien/neu` zeigt zuerst eine TVmaze-Suche und darunter weiterhi
 
 Die Auswahl ist absichtlich ein eigener Schritt, weil TVmaze mehrere gleichnamige oder ähnlich benannte Serien liefern kann.
 
+Dieselbe Suche ist außerdem direkt in `/serien?q={titel}` integriert: Gibt es keinen exakten lokalen Titel, erscheinen unter den lokalen Ergebnissen automatisch die TVmaze-Treffer. Bereits importierte Treffer verlinken zur lokalen Detailseite; neue Treffer bieten „Zur Datenbank hinzufügen“ an.
+
 ## Felder
 
 - `name`: Titel mit 2 bis 150 Zeichen

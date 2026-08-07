@@ -18,11 +18,12 @@ $statement->execute($parameters);
 | Datei | SQL-Aufgabe | Variable Werte | Absicherung |
 | --- | --- | --- | --- |
 | `src/database.php` | PRAGMA, Tabellen und Indizes | keine | feste SQL-Struktur über `execute_statement()` |
+| `src/database.php` | additive Spaltenmigration für Anbieter-Metadaten | feste Spaltennamen | feste `ALTER TABLE`-Anweisungen, keine Benutzereingaben |
 | `src/import.php` | Upsert in `shows` | TVmaze-Felder | benannte Parameter |
 | `src/import.php` | Upsert in `episodes` | TVmaze-Felder und lokale Serien-ID | benannte Parameter |
 | `src/import.php` | Upsert in `genres` | Name und Slug | benannte Parameter |
 | `src/import.php` | DELETE und INSERT in `show_genre` | lokale IDs | benannte Parameter |
-| `src/import.php` | Einzelimport einer ausgewählten TVmaze-Serie | serverseitig erneut geladene API-Felder | benannte Parameter und gemeinsame Transaktion |
+| `src/import.php` | Einzelimport einer ausgewählten TVmaze-Serie samt Anbieter-Metadaten | serverseitig erneut geladene API-Felder | benannte Parameter und gemeinsame Transaktion |
 | `src/import.php` | lokale Nordlicht-Serie und Demo-Episoden | feste Beispieldaten und lokale IDs | vorbereitete SELECT-, UPDATE- und INSERT-Anweisungen |
 | `src/routes.php` | Abgleich vorhandener TVmaze-Treffer | externe IDs aus der Datenbank | feste SELECT-Abfrage, Vergleich als Integer |
 | `src/routes.php` | Serienliste mit JOIN und LIKE | GET-Suchbegriff | `:name` und `:summary` |
@@ -38,6 +39,7 @@ $statement->execute($parameters);
 - Dynamische IDs werden zuerst als positive Integer validiert und danach trotzdem gebunden.
 - TVmaze-Daten werden bereinigt und nie direkt in SQL geschrieben.
 - Die gepostete TVmaze-ID wird als positive Ganzzahl geprüft; anschließend lädt PHP die Felder erneut von `/shows/{id}`.
+- Der Import wird vor dem API- und Datenbankzugriff durch ein sitzungsgebundenes CSRF-Token geschützt.
 - `ON CONFLICT(external_id) DO UPDATE` macht den Einzelimport wiederholbar, ohne eine zweite Serie oder Episode anzulegen.
 - Die festen Werte `LIMIT 50` und `LIMIT 60` stammen nicht aus Benutzereingaben.
 - Das Formular akzeptiert nur bekannte Sprach-, Status- und Genre-Werte.

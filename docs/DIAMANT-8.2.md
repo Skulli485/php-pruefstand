@@ -24,13 +24,13 @@ GET /serien/neu?api_q={titel}
   → TVmaze-Treffer anzeigen
 
 POST /serien/importieren
-  → externe ID als positive Ganzzahl validieren
+  → CSRF-Token und externe ID validieren
   → Serie und Episoden serverseitig erneut von TVmaze laden
-  → Serie, Genres, Beziehungen und Episoden in einer Transaktion upserten
+  → Serie, Genres, Beziehungen, Episoden und Anbieter-Metadaten upserten
   → HTTP 303 auf /serien/{lokale-id}?imported=1
 ```
 
-Nur die externe ID kommt aus dem Formular. Poster, Texte, Metadaten, Genres und Episoden werden nicht aus versteckten Feldern übernommen, sondern direkt von den exakten TVmaze-Endpunkten geladen. UNIQUE-Regeln und Upserts verhindern bei einem zweiten Import Duplikate.
+Nur die externe ID und das CSRF-Token kommen aus dem Formular. Poster, Texte, Anbieter-Metadaten, Genres und Episoden werden nicht aus versteckten Feldern übernommen, sondern direkt von den exakten TVmaze-Endpunkten geladen. UNIQUE-Regeln und Upserts verhindern bei einem zweiten Import Duplikate.
 
 ## Geschütztes Löschen
 
