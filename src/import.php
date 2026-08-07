@@ -124,8 +124,9 @@ function import_shows(PDO $pdo): array
         'SELECT id FROM genres WHERE name = :name'
     );
     $relationStatement = $pdo->prepare(
-        'INSERT OR IGNORE INTO show_genre (show_id, genre_id)
-        VALUES (:show_id, :genre_id)'
+        'INSERT INTO show_genre (show_id, genre_id)
+        VALUES (:show_id, :genre_id)
+        ON CONFLICT(show_id, genre_id) DO NOTHING'
     );
 
     $importedShows = 0;
@@ -330,8 +331,9 @@ function import_selected_show(PDO $pdo, int $externalId): array
         ON CONFLICT(name) DO UPDATE SET slug = excluded.slug'
     );
     $relationStatement = $pdo->prepare(
-        'INSERT OR IGNORE INTO show_genre (show_id, genre_id)
-        VALUES (:show_id, :genre_id)'
+        'INSERT INTO show_genre (show_id, genre_id)
+        VALUES (:show_id, :genre_id)
+        ON CONFLICT(show_id, genre_id) DO NOTHING'
     );
     $episodeStatement = $pdo->prepare(
         'INSERT INTO episodes (
@@ -472,22 +474,22 @@ function seed_nordlicht(PDO $pdo): array
 
     try {
         if ($show === false) {
-            $showStatement = $pdo->prepare(
+            $showId = insert_and_return_id(
+                $pdo,
                 'INSERT INTO shows (
                     name, language, status, premiered, summary, image_url
                 ) VALUES (
                     :name, :language, :status, :premiered, :summary, :image_url
-                )'
+                )',
+                [
+                    'name' => 'Nordlicht',
+                    'language' => 'German',
+                    'status' => 'Running',
+                    'premiered' => '2026-08-07',
+                    'summary' => 'Eine deutschsprachige Mysteryserie über ein rätselhaftes Signal aus dem Norden.',
+                    'image_url' => '/images/nordlicht-poster.png',
+                ]
             );
-            $showStatement->execute([
-                'name' => 'Nordlicht',
-                'language' => 'German',
-                'status' => 'Running',
-                'premiered' => '2026-08-07',
-                'summary' => 'Eine deutschsprachige Mysteryserie über ein rätselhaftes Signal aus dem Norden.',
-                'image_url' => '/images/nordlicht-poster.png',
-            ]);
-            $showId = (int) $pdo->lastInsertId();
         } else {
             $showId = (int) $show['id'];
             execute_statement(
@@ -511,8 +513,9 @@ function seed_nordlicht(PDO $pdo): array
         )->fetchColumn();
         execute_statement(
             $pdo,
-            'INSERT OR IGNORE INTO show_genre (show_id, genre_id)
-            VALUES (:show_id, :genre_id)',
+            'INSERT INTO show_genre (show_id, genre_id)
+            VALUES (:show_id, :genre_id)
+            ON CONFLICT(show_id, genre_id) DO NOTHING',
             ['show_id' => $showId, 'genre_id' => $genreId]
         );
 

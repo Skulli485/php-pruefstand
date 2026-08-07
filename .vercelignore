@@ -1,0 +1,6 @@
+.git
+.vercel
+.env*
+!.env.example
+data/*.sqlite
+*.log

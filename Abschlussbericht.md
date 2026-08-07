@@ -1,4 +1,4 @@
-# Abschlussbericht – Serienprüfstand
+# Abschlussbericht – Film- & Serienprüfstand
 
 ## 1. Repository
 
@@ -26,6 +26,14 @@ Der ursprüngliche Stand verwendete Blindtexte von JSONPlaceholder. Diese Texte 
 
 Die Daten stammen jetzt aus der öffentlichen [TVmaze-API](https://www.tvmaze.com/api). Das automatische Setup wählt englisch- oder deutschsprachige Serien aus. Die normale Suche prüft zuerst den lokalen Katalog und zeigt bei fehlendem exaktem Titel zusätzlich passende TVmaze-Treffer an. Von dort kann jede gewünschte Serie bewusst importiert werden. Beschreibungen werden von HTML befreit und als Klartext gespeichert.
 
+Als Erweiterung verwaltet dieselbe Anwendung nun auch Filme. Manuelle Filme funktionieren
+ohne weitere Zugangsdaten. Mit einem serverseitigen `TMDB_API_TOKEN`,
+`TMDB_API_READ_TOKEN` oder `TMDB_API_KEY` sucht die App bei
+[TMDB](https://www.themoviedb.org), importiert deutsche Filmdaten und speichert die für
+Deutschland verfügbaren JustWatch-Anbieter getrennt nach Abo, kostenlos, Leihen und Kaufen.
+Lokal lädt die Anwendung diese Werte aus einer von Git ignorierten `.env`-Datei;
+bereits gesetzte Server- oder Hosting-Variablen behalten dabei Vorrang.
+
 ## 5. Routen
 
 | Methode | Route | Funktion |
@@ -38,17 +46,32 @@ Die Daten stammen jetzt aus der öffentlichen [TVmaze-API](https://www.tvmaze.co
 | POST | `/serien/neu` | validieren, speichern und redirecten |
 | POST | `/serien/importieren` | gewählten TVmaze-Treffer samt Episoden importieren |
 | POST | `/serien/{id}/loeschen` | Serie, Episoden und Genre-Zuordnungen löschen |
+| GET | `/filme` | lokale Filmsuche mit optionalem TMDB-Fallback |
+| GET | `/filme/{id}` | Film mit Genres und deutschen Anbieteroptionen |
+| GET | `/filme/neu` | TMDB-Suche und manuelles Filmformular |
+| POST | `/filme/neu` | manuellen Film validieren und speichern |
+| POST | `/filme/importieren` | gewählten TMDB-Film importieren |
+| POST | `/filme/{id}/loeschen` | Film und abhängige Zuordnungen löschen |
 
 ## 6. Datenbanktabellen
 
-Die aktive SQLite-Datenbank `data/serienpruefstand.sqlite` enthält vier Tabellen:
+Lokal verwendet die App `data/serienpruefstand.sqlite`; auf Vercel nutzt dieselbe
+PDO-Schicht eine über `DATABASE_URL` verbundene Postgres-Datenbank. Das Schema enthält
+sieben Tabellen:
 
 - `shows`
 - `episodes`
 - `genres`
 - `show_genre`
+- `movies`
+- `movie_genre`
+- `movie_provider`
 
 Externe IDs werden getrennt von lokalen Primärschlüsseln gespeichert. Dadurch können lokal angelegte Serien eine normale lokale ID erhalten, während ihre `external_id` leer bleibt.
+
+Dasselbe gilt für Filme. `movie_genre` bildet ihre n:m-Beziehung zu den gemeinsam
+genutzten Genres ab. `movie_provider` speichert pro Film Anbieter und Angebotsart;
+beide Tabellen werden beim Löschen des Films per Cascade bereinigt.
 
 ## 7. 1:n-Beziehung
 
@@ -90,10 +113,17 @@ Der zusammengesetzte Primärschlüssel verhindert doppelte Genre-Zuordnungen.
 | `/search/shows?q={titel}` | passende Serien suchen und zur Auswahl anzeigen |
 | `/shows/{id}` | ausgewählte Serie mit Poster und Genres exakt laden |
 | `/shows/{id}/episodes` | Episoden der zuvor importierten Serien |
+| `/search/movie?language=de-DE&region=DE` | deutsche TMDB-Filmsuche |
+| `/movie/{id}?language=de-DE` | ausgewählten Film vollständig laden |
+| `/movie/{id}/watch/providers` | deutsche JustWatch-Anbieter über TMDB laden |
 
 Der Abruf erfolgt mit PHP-cURL, einem eindeutigen User-Agent und kontrollierter Behandlung von HTTP- und JSON-Fehlern. TVmaze wird im Footer und über Links auf den Detailseiten als Quelle genannt.
 
 Zusätzlich werden `network`, `webChannel` und `officialSite` aus dem Seriendatensatz gespeichert. Network beziehungsweise Web Channel beschreiben den von TVmaze geführten aktuellen/letzten Ausstrahlungskanal, nicht automatisch alle derzeit buchbaren Streamingdienste. Die Detailseite zeigt deshalb einen transparenten Hinweis und verlinkt zur länderabhängigen Anbieterprüfung auf TVmaze.
+
+TMDB wird mit dem vorgeschriebenen Logo und Quellenhinweis im Footer genannt. Der
+API-Token bleibt serverseitig im Authorization-Header. Die Film-Detailseite kennzeichnet
+JustWatch als Quelle der Anbieterinformationen und verlinkt zur aktuellen Übersicht.
 
 ## 11. Bronze
 
@@ -285,7 +315,10 @@ Ein frischer Setup-Lauf enthält 13 Serien, 1.085 Episoden, 13 Genres und 37 Gen
 - Ein automatisierter Nachher-Screenshot fehlt, weil die installierte In-App-Browser-Verbindung in der Testumgebung keine verfügbaren Browser meldete. Die vom Benutzer bereitgestellten Vorher-Screenshots dienten als Fehlerreferenz.
 - Die TVmaze-Beschreibungen sind überwiegend Englisch. Sie sind verständlicher als die vorherigen Blindtexte, werden aber nicht automatisch ins Deutsche übersetzt.
 - Die öffentliche TVmaze-API liefert keine vollständige aktuelle Streaming-Verfügbarkeit pro Land. Angezeigt werden deshalb der TVmaze-Sender/Webkanal und ein Link zur aktuellen, länderabhängigen Anbieterprüfung auf der TVmaze-Seite.
-- `WARMUP.md` bleibt absichtlich unbeantwortet, damit die Lernfragen selbst bearbeitet werden können.
+- Für die automatische Filmsuche werden ein TMDB API Read Access Token oder alternativ
+  ein v3-API-Schlüssel als serverseitige Umgebungsvariable benötigt. Ohne Zugangsdaten
+  bleiben manuelle Filme und der vollständige Serienbereich verfügbar.
+- `WARMUP.md` ist vollständig beantwortet.
 
 ## 20. Git-Prüfung vor der Abgabe
 
@@ -324,7 +357,7 @@ Der Browser sendet Methode und URL an `public/index.php`. Der Front Controller l
 
 ### Prepared Statements
 
-SQL-Struktur und Werte werden getrennt an SQLite übergeben. Ein Eingabewert kann dadurch den SQL-Satz nicht verändern.
+SQL-Struktur und Werte werden getrennt über PDO an SQLite beziehungsweise Postgres übergeben. Ein Eingabewert kann dadurch den SQL-Satz nicht verändern.
 
 ### Escaping
 
@@ -332,4 +365,4 @@ SQL-Struktur und Werte werden getrennt an SQLite übergeben. Ein Eingabewert kan
 
 ### Beziehungen
 
-Bei 1:n liegt der Fremdschlüssel auf der Seite mit den vielen Datensätzen. Bei n:m wird eine Zwischentabelle benötigt, weil beide Seiten mehrere Gegenstücke besitzen können.
+Bei 1:n liegt der Fremdschlüssel auf der Seite mit den vielen Datensätzen. Bei n:m wird eine Zwischentabelle benötigt, weil beide Seiten mehrere Gegenstücke besitzen können. Das gilt sowohl für `show_genre` als auch für `movie_genre`; `movie_provider` modelliert zusätzlich mehrere Angebotsarten pro Film.

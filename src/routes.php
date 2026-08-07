@@ -170,20 +170,21 @@ function show_home(PDO $pdo): void
 {
     $showCount = execute_statement($pdo, 'SELECT COUNT(*) FROM shows')->fetchColumn();
     $episodeCount = execute_statement($pdo, 'SELECT COUNT(*) FROM episodes')->fetchColumn();
+    $movieCount = execute_statement($pdo, 'SELECT COUNT(*) FROM movies')->fetchColumn();
     $genreCount = execute_statement($pdo, 'SELECT COUNT(*) FROM genres')->fetchColumn();
 
     page_start('Übersicht', '/');
     ?>
     <section class="intro">
-        <p class="eyebrow">PHP · API · SQLite</p>
-        <h1>Serien, Episoden und echte Beziehungen.</h1>
+        <p class="eyebrow">PHP · APIs · SQL</p>
+        <h1>Serien und Filme in einer Sammlung.</h1>
         <p>
             Der Serienprüfstand importiert verständliche TV-Daten von TVmaze,
-            speichert sie lokal und wertet sie mit sicheren SQL-JOINs aus.
+            ergänzt Filme aus TMDB und wertet alles mit sicheren SQL-JOINs aus.
         </p>
         <div class="hero-actions">
             <a class="button" href="/serien">Serien entdecken</a>
-            <a class="text-link" href="/serien/neu">Eigene Serie anlegen</a>
+            <a class="text-link" href="/filme">Filme entdecken</a>
         </div>
     </section>
 
@@ -195,6 +196,10 @@ function show_home(PDO $pdo): void
         <div>
             <strong><?= (int) $episodeCount ?></strong>
             <span>Episoden</span>
+        </div>
+        <div>
+            <strong><?= (int) $movieCount ?></strong>
+            <span>Filme</span>
         </div>
         <div>
             <strong><?= (int) $genreCount ?></strong>
@@ -210,17 +215,20 @@ function show_series(PDO $pdo): void
     $search = request_text($_GET, 'q');
     $flashMessage = take_flash_message();
     $searchPattern = '%' . $search . '%';
+    $genreAggregation = uses_postgres($pdo)
+        ? "STRING_AGG(DISTINCT g.name, ', ')"
+        : 'GROUP_CONCAT(DISTINCT g.name)';
     $shows = execute_statement(
         $pdo,
         'SELECT s.id, s.name, s.language, s.status, s.premiered,
             s.summary, s.image_url,
             COUNT(DISTINCT e.id) AS episode_count,
-            GROUP_CONCAT(DISTINCT g.name) AS genres
+            ' . $genreAggregation . ' AS genres
         FROM shows s
         LEFT JOIN episodes e ON e.show_id = s.id
         LEFT JOIN show_genre sg ON sg.show_id = s.id
         LEFT JOIN genres g ON g.id = sg.genre_id
-        WHERE s.name LIKE :name OR s.summary LIKE :summary
+        WHERE LOWER(s.name) LIKE LOWER(:name) OR LOWER(s.summary) LIKE LOWER(:summary)
         GROUP BY s.id, s.name, s.language, s.status, s.premiered, s.summary, s.image_url
         ORDER BY s.name
         LIMIT 50',
@@ -554,6 +562,7 @@ function show_new_series_form(
 
     <div class="form-layout">
         <form class="entry-form" method="post" action="/serien/neu">
+            <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
             <div class="form-field">
                 <label for="name">Titel</label>
                 <input
@@ -727,6 +736,11 @@ function handle_tvmaze_import(PDO $pdo): void
 
 function handle_new_series(PDO $pdo): void
 {
+    if (!valid_csrf_token($_POST['csrf_token'] ?? null)) {
+        forbidden('Das Sicherheitstoken ist ungültig oder abgelaufen. Bitte öffne das Formular erneut.');
+        return;
+    }
+
     $name = request_text($_POST, 'name');
     $language = request_text($_POST, 'language');
     $status = request_text($_POST, 'status');
@@ -811,10 +825,6 @@ function handle_new_series(PDO $pdo): void
         return;
     }
 
-    $showStatement = $pdo->prepare(
-        'INSERT INTO shows (name, language, status, premiered, summary)
-        VALUES (:name, :language, :status, :premiered, :summary)'
-    );
     $genreStatement = $pdo->prepare(
         'INSERT INTO show_genre (show_id, genre_id)
         VALUES (:show_id, :genre_id)'
@@ -823,14 +833,18 @@ function handle_new_series(PDO $pdo): void
     $pdo->beginTransaction();
 
     try {
-        $showStatement->execute([
-            'name' => $name,
-            'language' => $language,
-            'status' => $status,
-            'premiered' => $premiered !== '' ? $premiered : null,
-            'summary' => $summary,
-        ]);
-        $showId = (int) $pdo->lastInsertId();
+        $showId = insert_and_return_id(
+            $pdo,
+            'INSERT INTO shows (name, language, status, premiered, summary)
+            VALUES (:name, :language, :status, :premiered, :summary)',
+            [
+                'name' => $name,
+                'language' => $language,
+                'status' => $status,
+                'premiered' => $premiered !== '' ? $premiered : null,
+                'summary' => $summary,
+            ]
+        );
 
         foreach ($genreIds as $genreId) {
             $genreStatement->execute([
@@ -848,6 +862,7 @@ function handle_new_series(PDO $pdo): void
         throw $error;
     }
 
+    rotate_csrf_token();
     header('Location: /serien/' . $showId, true, 303);
     exit;
 }

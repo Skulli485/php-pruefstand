@@ -185,7 +185,7 @@ button:hover {
 
 .summary {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     margin-top: 5rem;
     border-block: 1px solid var(--line);
 }
@@ -955,6 +955,70 @@ select option {
     flex-wrap: wrap;
 }
 
+.movie-placeholder {
+    padding: 1rem;
+    font-size: clamp(1.35rem, 6vw, 2.7rem);
+    letter-spacing: .08em;
+}
+
+.original-title {
+    margin-top: -1.1rem;
+    color: var(--muted);
+    font-family: var(--mono);
+}
+
+.provider-grid {
+    display: grid;
+    grid-column: 2 / -1;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: .75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.provider-card {
+    display: flex;
+    gap: .8rem;
+    align-items: center;
+    min-width: 0;
+    padding: .7rem;
+    border: 1px solid var(--line-soft);
+    background: rgb(0 0 0 / 18%);
+}
+
+.provider-card img {
+    width: 2.8rem;
+    height: 2.8rem;
+    flex: 0 0 auto;
+    border-radius: .45rem;
+    object-fit: cover;
+}
+
+.provider-card div {
+    display: grid;
+    min-width: 0;
+}
+
+.provider-card span {
+    color: var(--muted);
+    font: .7rem var(--mono);
+    text-transform: uppercase;
+}
+
+.provider-card strong {
+    overflow: hidden;
+    color: var(--accent);
+    font-family: var(--condensed);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.movie-watch-section .watch-note,
+.movie-watch-section .watch-actions {
+    grid-column: 1 / -1;
+}
+
 .episode-section {
     margin-block: 5rem 3rem;
     padding-top: 2rem;
@@ -998,7 +1062,36 @@ code {
     color: var(--accent);
 }
 
+.site-footer > p {
+    margin-top: 0;
+}
+
+.tmdb-credit {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    max-width: 52rem;
+    margin-top: 1rem;
+}
+
+.tmdb-credit a {
+    flex: 0 0 3.5rem;
+}
+
+.tmdb-credit img {
+    width: 3.5rem;
+    height: auto;
+}
+
+.tmdb-credit p {
+    margin: 0;
+}
+
 @media (max-width: 950px) {
+    .summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .form-layout,
     .series-detail,
     .api-search-panel {
@@ -1031,6 +1124,10 @@ code {
 
     .watch-note,
     .watch-actions {
+        grid-column: 1 / -1;
+    }
+
+    .provider-grid {
         grid-column: 1 / -1;
     }
 
@@ -1132,6 +1229,10 @@ code {
         padding: 1rem 0;
         border-block: 1px solid var(--line-soft);
         border-inline: 0;
+    }
+
+    .tmdb-credit {
+        align-items: flex-start;
     }
 }
 
