@@ -24,6 +24,7 @@ try {
         ['method' => 'GET', 'path' => '/beitraege', 'handler' => fn(array $_parameters) => show_posts($pdo)],
         ['method' => 'GET', 'path' => '/resonanz', 'handler' => fn(array $_parameters) => show_resonance($pdo)],
         ['method' => 'GET', 'path' => '/beitraege/neu', 'handler' => fn(array $_parameters) => show_new_post_form($pdo)],
+        ['method' => 'POST', 'path' => '/beitraege/neu', 'handler' => fn(array $_parameters) => handle_new_post($pdo)],
         ['method' => 'GET', 'path' => '/beitraege/{id}', 'handler' => fn(array $parameters) => show_post($pdo, $parameters)],
         ['method' => 'GET', 'path' => '/autoren/{id}', 'handler' => fn(array $parameters) => show_author($pdo, $parameters)],
     ];

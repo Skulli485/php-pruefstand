@@ -159,8 +159,15 @@ function show_resonance(PDO $pdo): void
     page_end();
 }
 
-function show_new_post_form(PDO $pdo): void
+function show_new_post_form(PDO $pdo, array $values = [], array $errors = []): void
 {
+    $values = array_replace([
+        'author_id' => 0,
+        'title' => '',
+        'body' => '',
+        'tag_ids' => [],
+    ], $values);
+    $selectedTagIds = is_array($values['tag_ids']) ? $values['tag_ids'] : [];
     $authors = execute_statement(
         $pdo,
         'SELECT id, name FROM authors ORDER BY name'
@@ -177,18 +184,40 @@ function show_new_post_form(PDO $pdo): void
         <p>Der Beitrag wird lokal in SQLite gespeichert.</p>
     </section>
 
+    <?php if ($errors !== []): ?>
+        <section class="error-summary" role="alert" aria-labelledby="error-heading">
+            <h2 id="error-heading">Bitte prüfe deine Eingaben</h2>
+            <ul>
+                <?php foreach ($errors as $error): ?>
+                    <li><?= e($error) ?></li>
+                <?php endforeach; ?>
+            </ul>
+        </section>
+    <?php endif; ?>
+
     <div class="form-layout">
         <form class="entry-form" method="post" action="/beitraege/neu">
             <div class="form-field">
                 <label for="author_id">Autor</label>
-                <select id="author_id" name="author_id" required>
+                <select
+                    id="author_id"
+                    name="author_id"
+                    required
+                    <?= isset($errors['author_id']) ? 'aria-invalid="true" aria-describedby="author_id-error"' : '' ?>
+                >
                     <option value="">Bitte auswählen</option>
                     <?php foreach ($authors as $author): ?>
-                        <option value="<?= (int) $author['id'] ?>">
+                        <option
+                            value="<?= (int) $author['id'] ?>"
+                            <?= (int) $values['author_id'] === (int) $author['id'] ? 'selected' : '' ?>
+                        >
                             <?= e($author['name']) ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
+                <?php if (isset($errors['author_id'])): ?>
+                    <p class="field-error" id="author_id-error"><?= e($errors['author_id']) ?></p>
+                <?php endif; ?>
             </div>
 
             <div class="form-field">
@@ -197,10 +226,15 @@ function show_new_post_form(PDO $pdo): void
                     id="title"
                     name="title"
                     type="text"
+                    value="<?= e($values['title']) ?>"
                     required
                     minlength="5"
                     maxlength="150"
+                    <?= isset($errors['title']) ? 'aria-invalid="true" aria-describedby="title-error"' : '' ?>
                 >
+                <?php if (isset($errors['title'])): ?>
+                    <p class="field-error" id="title-error"><?= e($errors['title']) ?></p>
+                <?php endif; ?>
             </div>
 
             <div class="form-field">
@@ -212,7 +246,11 @@ function show_new_post_form(PDO $pdo): void
                     required
                     minlength="20"
                     maxlength="5000"
-                ></textarea>
+                    <?= isset($errors['body']) ? 'aria-invalid="true" aria-describedby="body-error"' : '' ?>
+                ><?= e($values['body']) ?></textarea>
+                <?php if (isset($errors['body'])): ?>
+                    <p class="field-error" id="body-error"><?= e($errors['body']) ?></p>
+                <?php endif; ?>
             </div>
 
             <fieldset class="form-field">
@@ -224,11 +262,15 @@ function show_new_post_form(PDO $pdo): void
                                 type="checkbox"
                                 name="tag_ids[]"
                                 value="<?= (int) $tag['id'] ?>"
+                                <?= in_array((int) $tag['id'], $selectedTagIds, true) ? 'checked' : '' ?>
                             >
                             <span><?= e($tag['name']) ?></span>
                         </label>
                     <?php endforeach; ?>
                 </div>
+                <?php if (isset($errors['tag_ids'])): ?>
+                    <p class="field-error" id="tag_ids-error"><?= e($errors['tag_ids']) ?></p>
+                <?php endif; ?>
             </fieldset>
 
             <div class="form-actions">
@@ -257,6 +299,130 @@ function show_new_post_form(PDO $pdo): void
     </div>
     <?php
     page_end();
+}
+
+function handle_new_post(PDO $pdo): void
+{
+    $rawAuthorId = $_POST['author_id'] ?? '';
+    $authorId = is_string($rawAuthorId) && ctype_digit($rawAuthorId)
+        ? (int) $rawAuthorId
+        : 0;
+    $title = request_text($_POST, 'title');
+    $body = request_text($_POST, 'body');
+    $rawTagIds = $_POST['tag_ids'] ?? [];
+    $tagIds = [];
+    $invalidTagValue = !is_array($rawTagIds);
+
+    if (is_array($rawTagIds)) {
+        foreach ($rawTagIds as $rawTagId) {
+            if (!is_string($rawTagId) || !ctype_digit($rawTagId) || (int) $rawTagId < 1) {
+                $invalidTagValue = true;
+                continue;
+            }
+
+            $tagIds[] = (int) $rawTagId;
+        }
+    }
+
+    $tagIds = array_values(array_unique($tagIds));
+    $errors = [];
+
+    if ($rawAuthorId === '' || $authorId < 1) {
+        $errors['author_id'] = 'Bitte wähle einen Autor aus.';
+    } else {
+        $authorExists = (int) execute_statement(
+            $pdo,
+            'SELECT COUNT(*) FROM authors WHERE id = :id',
+            ['id' => $authorId]
+        )->fetchColumn();
+
+        if ($authorExists !== 1) {
+            $errors['author_id'] = 'Der ausgewählte Autor ist ungültig.';
+        }
+    }
+
+    $titleLength = mb_strlen($title);
+
+    if ($title === '') {
+        $errors['title'] = 'Der Titel ist ein Pflichtfeld.';
+    } elseif ($titleLength < 5) {
+        $errors['title'] = 'Der Titel muss mindestens 5 Zeichen lang sein.';
+    } elseif ($titleLength > 150) {
+        $errors['title'] = 'Der Titel darf höchstens 150 Zeichen lang sein.';
+    }
+
+    $bodyLength = mb_strlen($body);
+
+    if ($body === '') {
+        $errors['body'] = 'Der Inhalt ist ein Pflichtfeld.';
+    } elseif ($bodyLength < 20) {
+        $errors['body'] = 'Der Inhalt muss mindestens 20 Zeichen lang sein.';
+    } elseif ($bodyLength > 5000) {
+        $errors['body'] = 'Der Inhalt darf höchstens 5000 Zeichen lang sein.';
+    }
+
+    $availableTagRows = execute_statement($pdo, 'SELECT id FROM tags')->fetchAll();
+    $availableTagIds = array_map(
+        fn(array $tag): int => (int) $tag['id'],
+        $availableTagRows
+    );
+
+    if ($tagIds === []) {
+        $errors['tag_ids'] = 'Bitte wähle mindestens ein Schlagwort aus.';
+    } elseif ($invalidTagValue || array_diff($tagIds, $availableTagIds) !== []) {
+        $errors['tag_ids'] = 'Mindestens ein ausgewähltes Schlagwort ist ungültig.';
+    }
+
+    $values = [
+        'author_id' => $authorId,
+        'title' => $title,
+        'body' => $body,
+        'tag_ids' => $tagIds,
+    ];
+
+    if ($errors !== []) {
+        http_response_code(422);
+        show_new_post_form($pdo, $values, $errors);
+        return;
+    }
+
+    $postStatement = $pdo->prepare(
+        'INSERT INTO posts (author_id, title, body)
+        VALUES (:author_id, :title, :body)'
+    );
+    $tagStatement = $pdo->prepare(
+        'INSERT INTO post_tag (post_id, tag_id)
+        VALUES (:post_id, :tag_id)'
+    );
+
+    $pdo->beginTransaction();
+
+    try {
+        $postStatement->execute([
+            'author_id' => $authorId,
+            'title' => $title,
+            'body' => $body,
+        ]);
+        $postId = (int) $pdo->lastInsertId();
+
+        foreach ($tagIds as $tagId) {
+            $tagStatement->execute([
+                'post_id' => $postId,
+                'tag_id' => $tagId,
+            ]);
+        }
+
+        $pdo->commit();
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        throw $error;
+    }
+
+    header('Location: /beitraege/' . $postId, true, 303);
+    exit;
 }
 
 function show_post(PDO $pdo, array $parameters): void

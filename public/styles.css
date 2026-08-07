@@ -343,6 +343,23 @@ select {
     border: 1px solid var(--line);
 }
 
+.error-summary {
+    max-width: 56rem;
+    margin-block: 2rem;
+    padding: 1rem 1.25rem;
+    border: 1px solid var(--danger);
+    border-left-width: 5px;
+}
+
+.error-summary h2 {
+    margin-bottom: .5rem;
+    color: var(--danger);
+}
+
+.error-summary ul {
+    margin-block: .5rem 0;
+}
+
 .form-field {
     display: grid;
     grid-template-columns: minmax(8rem, .35fr) minmax(0, 1fr);
@@ -361,6 +378,17 @@ select {
     font-weight: 800;
     letter-spacing: .04em;
     text-transform: uppercase;
+}
+
+.field-error {
+    grid-column: 2;
+    margin: -.9rem 0 0;
+    color: var(--danger);
+    font-size: .9rem;
+}
+
+[aria-invalid="true"] {
+    border-color: var(--danger);
 }
 
 .checkbox-list {
@@ -570,6 +598,11 @@ code {
     .form-field > label,
     .form-field > legend {
         padding-top: 0;
+    }
+
+    .field-error {
+        grid-column: 1;
+        margin-top: 0;
     }
 
     .form-actions {
