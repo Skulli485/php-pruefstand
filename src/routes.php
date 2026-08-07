@@ -27,6 +27,15 @@ function status_label(string $status): string
     };
 }
 
+function distribution_type_label(string $type): string
+{
+    return match ($type) {
+        'web' => 'Web-/Streaming-Kanal',
+        'network' => 'Fernsehsender',
+        default => 'Anbieterhinweis',
+    };
+}
+
 function search_tvmaze_shows(PDO $pdo, string $query): array
 {
     $response = api_get('/search/shows?q=' . rawurlencode($query));
@@ -68,6 +77,8 @@ function search_tvmaze_shows(PDO $pdo, string $query): array
             }
         }
 
+        $distribution = show_distribution($show);
+
         $results[] = [
             'external_id' => $externalId,
             'local_id' => $existingIds[$externalId] ?? null,
@@ -80,11 +91,79 @@ function search_tvmaze_shows(PDO $pdo, string $query): array
                 'Für diese Serie ist bei TVmaze noch keine Beschreibung verfügbar.'
             ),
             'image_url' => https_url($show['image']['medium'] ?? null),
+            'source_url' => https_url($show['url'] ?? null),
+            'official_site_url' => $distribution['official_site_url'],
+            'distribution_name' => $distribution['name'],
+            'distribution_type' => $distribution['type'],
+            'distribution_country' => $distribution['country'],
             'genres' => $genres,
         ];
     }
 
     return $results;
+}
+
+function render_tvmaze_result_list(array $results): void
+{
+    ?>
+    <ol class="api-result-list">
+        <?php foreach ($results as $result): ?>
+            <li class="api-result-card">
+                <div class="api-result-poster">
+                    <?php if ($result['image_url'] !== ''): ?>
+                        <img
+                            src="<?= e($result['image_url']) ?>"
+                            alt="Poster zu <?= e($result['name']) ?>"
+                            loading="lazy"
+                        >
+                    <?php else: ?>
+                        <span class="poster-placeholder" aria-hidden="true">TV</span>
+                    <?php endif; ?>
+                </div>
+                <div class="api-result-content">
+                    <div>
+                        <p class="api-result-meta">
+                            <span><?= e(language_label((string) $result['language'])) ?></span>
+                            <span><?= e(status_label((string) $result['status'])) ?></span>
+                            <span><?= e($result['premiered'] ?: 'Premiere unbekannt') ?></span>
+                        </p>
+                        <h3><?= e($result['name']) ?></h3>
+                        <p class="genre-line">
+                            <?= e($result['genres'] !== [] ? implode(', ', $result['genres']) : 'Ohne Genre') ?>
+                        </p>
+                        <?php if ($result['distribution_name'] !== ''): ?>
+                            <p class="availability-hint">
+                                <?= e(distribution_type_label((string) $result['distribution_type'])) ?>:
+                                <strong><?= e($result['distribution_name']) ?></strong>
+                                <?php if ($result['distribution_country'] !== ''): ?>
+                                    · <?= e($result['distribution_country']) ?>
+                                <?php endif; ?>
+                            </p>
+                        <?php endif; ?>
+                        <p><?= e(excerpt((string) $result['summary'], 230)) ?></p>
+                    </div>
+                    <div class="api-result-action">
+                        <?php if ($result['local_id'] !== null): ?>
+                            <a class="button" href="/serien/<?= (int) $result['local_id'] ?>">
+                                Bereits in Datenbank
+                            </a>
+                        <?php else: ?>
+                            <form method="post" action="/serien/importieren">
+                                <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+                                <input
+                                    type="hidden"
+                                    name="external_id"
+                                    value="<?= (int) $result['external_id'] ?>"
+                                >
+                                <button type="submit">Zur Datenbank hinzufügen</button>
+                            </form>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </li>
+        <?php endforeach; ?>
+    </ol>
+    <?php
 }
 
 function show_home(PDO $pdo): void
@@ -151,6 +230,35 @@ function show_series(PDO $pdo): void
         ]
     )->fetchAll();
 
+    $hasExactLocalMatch = false;
+
+    foreach ($shows as $show) {
+        if (mb_strtolower((string) $show['name']) === mb_strtolower($search)) {
+            $hasExactLocalMatch = true;
+            break;
+        }
+    }
+
+    $onlineResults = [];
+    $onlineSearchError = '';
+    $shouldSearchOnline = $search !== '' && !$hasExactLocalMatch;
+
+    if ($shouldSearchOnline) {
+        $searchLength = mb_strlen($search);
+
+        if ($searchLength < 2) {
+            $onlineSearchError = 'Für die Online-Suche werden mindestens 2 Zeichen benötigt.';
+        } elseif ($searchLength > 100) {
+            $onlineSearchError = 'Für die Online-Suche sind höchstens 100 Zeichen erlaubt.';
+        } else {
+            try {
+                $onlineResults = search_tvmaze_shows($pdo, $search);
+            } catch (RuntimeException $error) {
+                $onlineSearchError = 'TVmaze ist gerade nicht erreichbar. Deine lokale Suche funktioniert weiterhin.';
+            }
+        }
+    }
+
     page_start('Serien', '/serien');
     ?>
     <section class="list-heading">
@@ -169,7 +277,7 @@ function show_series(PDO $pdo): void
                 <button type="submit">Suchen</button>
             </div>
         </form>
-        <p class="result-count"><?= count($shows) ?> Treffer</p>
+        <p class="result-count"><?= count($shows) ?> lokale Treffer</p>
     </section>
 
     <?php if ($flashMessage !== ''): ?>
@@ -180,8 +288,8 @@ function show_series(PDO $pdo): void
 
     <?php if ($shows === []): ?>
         <section class="empty-state">
-            <h2>Keine Serie gefunden</h2>
-            <p>Versuche einen anderen Suchbegriff oder lege selbst eine Serie an.</p>
+            <h2>Nicht in deiner Datenbank</h2>
+            <p>Die Online-Suche darunter prüft, ob TVmaze passende Serien kennt.</p>
             <a class="text-link" href="/serien/neu">Neue Serie anlegen</a>
         </section>
     <?php else: ?>
@@ -214,6 +322,34 @@ function show_series(PDO $pdo): void
                 </li>
             <?php endforeach; ?>
         </ol>
+    <?php endif; ?>
+
+    <?php if ($shouldSearchOnline): ?>
+        <section class="online-results" aria-labelledby="online-results-heading">
+            <div class="api-results-heading">
+                <p class="eyebrow">Online-Suche · TVmaze</p>
+                <h2 id="online-results-heading">Weitere Serien online gefunden</h2>
+                <p>
+                    Diese Treffer stammen direkt von TVmaze. Wähle die richtige Serie aus,
+                    um Poster, Genres, Episoden und Anbieterhinweise zu übernehmen.
+                </p>
+            </div>
+
+            <?php if ($onlineSearchError !== ''): ?>
+                <div class="error-summary" role="status">
+                    <h3>Online-Suche nicht möglich</h3>
+                    <p><?= e($onlineSearchError) ?></p>
+                </div>
+            <?php elseif ($onlineResults === []): ?>
+                <div class="empty-state api-empty-state">
+                    <h3>Auch online kein Treffer</h3>
+                    <p>Prüfe die Schreibweise oder lege die Serie manuell an.</p>
+                </div>
+            <?php else: ?>
+                <p class="result-count"><?= count($onlineResults) ?> Online-Treffer</p>
+                <?php render_tvmaze_result_list($onlineResults); ?>
+            <?php endif; ?>
+        </section>
     <?php endif; ?>
     <?php
     page_end();
@@ -393,53 +529,7 @@ function show_new_series_form(
                 <h2 id="api-results-heading">Welche Serie meinst du?</h2>
                 <p>Die Auswahl verhindert, dass eine gleichnamige oder falsche Serie importiert wird.</p>
             </div>
-            <ol class="api-result-list">
-                <?php foreach ($apiResults as $result): ?>
-                    <li class="api-result-card">
-                        <div class="api-result-poster">
-                            <?php if ($result['image_url'] !== ''): ?>
-                                <img
-                                    src="<?= e($result['image_url']) ?>"
-                                    alt="Poster zu <?= e($result['name']) ?>"
-                                    loading="lazy"
-                                >
-                            <?php else: ?>
-                                <span class="poster-placeholder" aria-hidden="true">TV</span>
-                            <?php endif; ?>
-                        </div>
-                        <div class="api-result-content">
-                            <div>
-                                <p class="api-result-meta">
-                                    <span><?= e(language_label((string) $result['language'])) ?></span>
-                                    <span><?= e(status_label((string) $result['status'])) ?></span>
-                                    <span><?= e($result['premiered'] ?: 'Premiere unbekannt') ?></span>
-                                </p>
-                                <h3><?= e($result['name']) ?></h3>
-                                <p class="genre-line">
-                                    <?= e($result['genres'] !== [] ? implode(', ', $result['genres']) : 'Ohne Genre') ?>
-                                </p>
-                                <p><?= e(excerpt((string) $result['summary'], 230)) ?></p>
-                            </div>
-                            <div class="api-result-action">
-                                <?php if ($result['local_id'] !== null): ?>
-                                    <a class="button" href="/serien/<?= (int) $result['local_id'] ?>">
-                                        Bereits vorhanden
-                                    </a>
-                                <?php else: ?>
-                                    <form method="post" action="/serien/importieren">
-                                        <input
-                                            type="hidden"
-                                            name="external_id"
-                                            value="<?= (int) $result['external_id'] ?>"
-                                        >
-                                        <button type="submit">Serie automatisch übernehmen</button>
-                                    </form>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    </li>
-                <?php endforeach; ?>
-            </ol>
+            <?php render_tvmaze_result_list($apiResults); ?>
         </section>
     <?php endif; ?>
 
@@ -603,6 +693,11 @@ function show_new_series_form(
 
 function handle_tvmaze_import(PDO $pdo): void
 {
+    if (!valid_csrf_token($_POST['csrf_token'] ?? null)) {
+        forbidden('Das Sicherheitstoken ist ungültig oder abgelaufen. Bitte starte die Online-Suche erneut.');
+        return;
+    }
+
     $rawExternalId = $_POST['external_id'] ?? null;
 
     if (!is_string($rawExternalId) || !ctype_digit($rawExternalId) || (int) $rawExternalId < 1) {
@@ -625,6 +720,7 @@ function handle_tvmaze_import(PDO $pdo): void
         return;
     }
 
+    rotate_csrf_token();
     header('Location: /serien/' . (int) $result['show_id'] . '?imported=1', true, 303);
     exit;
 }
@@ -820,7 +916,8 @@ function show_series_detail(PDO $pdo, array $parameters): void
 
     $show = execute_statement(
         $pdo,
-        'SELECT id, name, language, status, premiered, summary, image_url, source_url
+        'SELECT id, name, language, status, premiered, summary, image_url, source_url,
+            official_site_url, distribution_name, distribution_type, distribution_country
         FROM shows
         WHERE id = :id',
         ['id' => $id]
@@ -900,11 +997,53 @@ function show_series_detail(PDO $pdo, array $parameters): void
                 <?php endif; ?>
             </section>
 
-            <?php if ($show['source_url'] !== ''): ?>
-                <p><a class="text-link" href="<?= e($show['source_url']) ?>">Datensatz bei TVmaze ansehen</a></p>
-            <?php endif; ?>
         </div>
     </article>
+
+    <section class="watch-section" aria-labelledby="watch-heading">
+        <div class="watch-heading">
+            <p class="eyebrow">Anbieterhinweis</p>
+            <h2 id="watch-heading">Wo kann ich die Serie ansehen?</h2>
+        </div>
+
+        <?php if ($show['distribution_name'] !== ''): ?>
+            <div class="watch-provider">
+                <span><?= e(distribution_type_label((string) $show['distribution_type'])) ?></span>
+                <strong><?= e($show['distribution_name']) ?></strong>
+                <?php if ($show['distribution_country'] !== ''): ?>
+                    <small><?= e($show['distribution_country']) ?></small>
+                <?php endif; ?>
+            </div>
+        <?php else: ?>
+            <p class="muted-text">
+                Für diese Serie ist lokal noch kein Sender oder Web-Kanal hinterlegt.
+            </p>
+        <?php endif; ?>
+
+        <p class="watch-note">
+            Der angezeigte Kanal ist der von TVmaze geführte Ursprungs- beziehungsweise
+            letzte Ausstrahlungskanal. Aktuelle Streaming-Angebote können je nach Land wechseln.
+        </p>
+
+        <div class="watch-actions">
+            <?php if ($show['source_url'] !== ''): ?>
+                <a
+                    class="button"
+                    href="<?= e($show['source_url']) ?>"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                >Aktuelle Anbieter bei TVmaze prüfen</a>
+            <?php endif; ?>
+            <?php if ($show['official_site_url'] !== ''): ?>
+                <a
+                    class="text-link"
+                    href="<?= e($show['official_site_url']) ?>"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                >Offizielle Serienseite</a>
+            <?php endif; ?>
+        </div>
+    </section>
 
     <section class="episode-section" aria-labelledby="episode-heading">
         <div class="section-heading-row">

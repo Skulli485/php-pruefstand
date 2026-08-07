@@ -493,6 +493,12 @@ select option {
     margin-top: 3.5rem;
 }
 
+.online-results {
+    margin-top: 5rem;
+    padding-top: 2.5rem;
+    border-top: 1px solid var(--accent);
+}
+
 .api-results-heading {
     max-width: 48rem;
 }
@@ -555,6 +561,16 @@ select option {
 .api-result-content > div > p:last-child {
     margin-bottom: 0;
     color: #c6cfd4;
+}
+
+.availability-hint {
+    margin: .7rem 0 0;
+    color: var(--muted);
+    font: .78rem var(--mono);
+}
+
+.availability-hint strong {
+    color: var(--text);
 }
 
 .api-result-meta {
@@ -884,6 +900,61 @@ select option {
     font-family: var(--mono);
 }
 
+.watch-section {
+    display: grid;
+    grid-template-columns: minmax(16rem, .75fr) minmax(12rem, .45fr) minmax(18rem, 1fr);
+    gap: clamp(1.5rem, 4vw, 3rem);
+    max-width: 75rem;
+    margin-top: 4rem;
+    padding: clamp(1.5rem, 4vw, 2.25rem);
+    border: 1px solid var(--line);
+    background:
+        linear-gradient(135deg, rgb(246 183 60 / 8%), transparent 55%),
+        var(--surface);
+}
+
+.watch-heading h2 {
+    margin-bottom: 0;
+    font-size: clamp(1.8rem, 4vw, 2.7rem);
+}
+
+.watch-heading .eyebrow {
+    margin-top: 0;
+}
+
+.watch-provider {
+    display: grid;
+    align-content: center;
+    padding-inline: 1.5rem;
+    border-inline: 1px solid var(--line-soft);
+}
+
+.watch-provider span,
+.watch-provider small {
+    color: var(--muted);
+    font: .75rem var(--mono);
+    text-transform: uppercase;
+}
+
+.watch-provider strong {
+    color: var(--accent);
+    font-family: var(--condensed);
+    font-size: 1.6rem;
+}
+
+.watch-note {
+    margin: 0;
+    color: #c6cfd4;
+}
+
+.watch-actions {
+    display: flex;
+    grid-column: 3;
+    gap: 1.25rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
 .episode-section {
     margin-block: 5rem 3rem;
     padding-top: 2rem;
@@ -947,6 +1018,20 @@ code {
     .api-result-action button,
     .api-result-action .button {
         width: auto;
+    }
+
+    .watch-section {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .watch-provider {
+        padding-right: 0;
+        border-right: 0;
+    }
+
+    .watch-note,
+    .watch-actions {
+        grid-column: 1 / -1;
     }
 
     .detail-poster {
@@ -1031,6 +1116,22 @@ code {
     .danger-zone form,
     .danger-button {
         width: 100%;
+    }
+
+    .watch-section {
+        grid-template-columns: 1fr;
+    }
+
+    .watch-provider,
+    .watch-note,
+    .watch-actions {
+        grid-column: 1;
+    }
+
+    .watch-provider {
+        padding: 1rem 0;
+        border-block: 1px solid var(--line-soft);
+        border-inline: 0;
     }
 }
 

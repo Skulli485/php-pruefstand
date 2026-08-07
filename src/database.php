@@ -47,9 +47,30 @@ function create_schema(PDO $pdo): void
             summary TEXT NOT NULL,
             image_url TEXT NOT NULL DEFAULT \'\',
             source_url TEXT NOT NULL DEFAULT \'\',
+            official_site_url TEXT NOT NULL DEFAULT \'\',
+            distribution_name TEXT NOT NULL DEFAULT \'\',
+            distribution_type TEXT NOT NULL DEFAULT \'\',
+            distribution_country TEXT NOT NULL DEFAULT \'\',
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )'
     );
+
+    $showColumns = array_column(
+        execute_statement($pdo, 'PRAGMA table_info(shows)')->fetchAll(),
+        'name'
+    );
+    $showColumnMigrations = [
+        'official_site_url' => 'ALTER TABLE shows ADD COLUMN official_site_url TEXT NOT NULL DEFAULT \'\'',
+        'distribution_name' => 'ALTER TABLE shows ADD COLUMN distribution_name TEXT NOT NULL DEFAULT \'\'',
+        'distribution_type' => 'ALTER TABLE shows ADD COLUMN distribution_type TEXT NOT NULL DEFAULT \'\'',
+        'distribution_country' => 'ALTER TABLE shows ADD COLUMN distribution_country TEXT NOT NULL DEFAULT \'\'',
+    ];
+
+    foreach ($showColumnMigrations as $column => $sql) {
+        if (!in_array($column, $showColumns, true)) {
+            execute_statement($pdo, $sql);
+        }
+    }
 
     execute_statement(
         $pdo,
