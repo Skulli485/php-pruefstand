@@ -21,12 +21,11 @@ try {
     $pdo = database();
     $routes = [
         ['method' => 'GET', 'path' => '/', 'handler' => fn(array $_parameters) => show_home($pdo)],
-        ['method' => 'GET', 'path' => '/beitraege', 'handler' => fn(array $_parameters) => show_posts($pdo)],
-        ['method' => 'GET', 'path' => '/resonanz', 'handler' => fn(array $_parameters) => show_resonance($pdo)],
-        ['method' => 'GET', 'path' => '/beitraege/neu', 'handler' => fn(array $_parameters) => show_new_post_form($pdo)],
-        ['method' => 'POST', 'path' => '/beitraege/neu', 'handler' => fn(array $_parameters) => handle_new_post($pdo)],
-        ['method' => 'GET', 'path' => '/beitraege/{id}', 'handler' => fn(array $parameters) => show_post($pdo, $parameters)],
-        ['method' => 'GET', 'path' => '/autoren/{id}', 'handler' => fn(array $parameters) => show_author($pdo, $parameters)],
+        ['method' => 'GET', 'path' => '/serien', 'handler' => fn(array $_parameters) => show_series($pdo)],
+        ['method' => 'GET', 'path' => '/episoden', 'handler' => fn(array $_parameters) => show_episode_analysis($pdo)],
+        ['method' => 'GET', 'path' => '/serien/neu', 'handler' => fn(array $_parameters) => show_new_series_form($pdo)],
+        ['method' => 'POST', 'path' => '/serien/neu', 'handler' => fn(array $_parameters) => handle_new_series($pdo)],
+        ['method' => 'GET', 'path' => '/serien/{id}', 'handler' => fn(array $parameters) => show_series_detail($pdo, $parameters)],
     ];
 
     dispatch($routes, $method, $path);

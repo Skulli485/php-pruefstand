@@ -30,9 +30,9 @@ function page_start(string $title, string $activeNavigation = ''): void
 {
     $navigation = [
         '/' => 'Übersicht',
-        '/beitraege' => 'Beiträge',
-        '/resonanz' => 'Resonanz',
-        '/beitraege/neu' => 'Neuer Beitrag',
+        '/serien' => 'Serien',
+        '/episoden' => 'Episoden',
+        '/serien/neu' => 'Neue Serie',
     ];
     ?>
     <!doctype html>
@@ -40,12 +40,12 @@ function page_start(string $title, string $activeNavigation = ''): void
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title><?= e($title) ?> · Redaktionsprüfstand</title>
+        <title><?= e($title) ?> · Serienprüfstand</title>
         <link rel="stylesheet" href="/styles.css">
     </head>
     <body>
         <header class="site-header">
-            <a class="brand" href="/">Redaktionsprüfstand</a>
+            <a class="brand" href="/">Serienprüfstand</a>
             <div class="measure" aria-hidden="true"></div>
             <nav aria-label="Hauptnavigation">
                 <?php foreach ($navigation as $path => $label): ?>
@@ -64,7 +64,10 @@ function page_end(): void
 {
     ?>
         </main>
-        <footer class="site-footer">PHP · PDO · SQLite · Eigener Router</footer>
+        <footer class="site-footer">
+            PHP · PDO · SQLite · Daten von
+            <a href="https://www.tvmaze.com/api">TVmaze</a>
+        </footer>
     </body>
     </html>
     <?php
