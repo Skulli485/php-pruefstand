@@ -22,6 +22,7 @@ $statement->execute($parameters);
 | `src/import.php` | Upsert in `episodes` | TVmaze-Felder und lokale Serien-ID | benannte Parameter |
 | `src/import.php` | Upsert in `genres` | Name und Slug | benannte Parameter |
 | `src/import.php` | DELETE und INSERT in `show_genre` | lokale IDs | benannte Parameter |
+| `src/import.php` | lokale Nordlicht-Serie und Demo-Episoden | feste Beispieldaten und lokale IDs | vorbereitete SELECT-, UPDATE- und INSERT-Anweisungen |
 | `src/routes.php` | Serienliste mit JOIN und LIKE | GET-Suchbegriff | `:name` und `:summary` |
 | `src/routes.php` | Episoden-Auswertung | keine | feste JOIN-Abfrage |
 | `src/routes.php` | Seriendetail und Genres | Routen-ID | Integer-Prüfung und Parameter |
@@ -36,6 +37,7 @@ $statement->execute($parameters);
 - Die festen Werte `LIMIT 50` und `LIMIT 60` stammen nicht aus Benutzereingaben.
 - Das Formular akzeptiert nur bekannte Sprach-, Status- und Genre-Werte.
 - Alle Transaktionen werden bei Exceptions zurückgerollt.
+- Das wiederholbare Nordlicht-Seeding verwendet Upserts und `INSERT OR IGNORE` statt unsicherer String-Konkatenation.
 
 ## Negativtests
 

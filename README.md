@@ -37,7 +37,7 @@ php -S localhost:8000 -t public public/index.php
 
 Danach ist die Anwendung unter <http://localhost:8000> erreichbar.
 
-`php scripts/setup.php` legt die Tabellen an, importiert zwölf englisch- oder deutschsprachige Serien und lädt deren Episoden. Der Befehl ist wiederholbar: Eindeutige externe IDs und Upserts verhindern doppelte API-Datensätze. Lokal angelegte Serien bleiben erhalten.
+`php scripts/setup.php` legt die Tabellen an, importiert zwölf englisch- oder deutschsprachige Serien und lädt deren Episoden. Zusätzlich ergänzt das Setup die deutsche Beispielserie „Nordlicht“ mit einem lokalen Poster und vier Demo-Episoden. Der Befehl ist wiederholbar: Eindeutige IDs und Upserts verhindern doppelte Datensätze. Weitere lokal angelegte Serien bleiben erhalten.
 
 ## Aufgabenstufen
 
@@ -102,6 +102,8 @@ Die öffentliche API stammt von [TVmaze](https://www.tvmaze.com/api):
 | `/shows/{id}/episodes` | Titel, Staffel, Nummer, Datum, Laufzeit, Beschreibung | `episodes` |
 
 Die HTML-Fragmente in API-Beschreibungen werden beim Import entfernt. Gespeichert werden nur Klartext und geprüfte HTTPS-URLs. TVmaze wird im Footer und auf externen Detailseiten als Quelle verlinkt.
+
+„Nordlicht“ ist ein lokaler, reproduzierbarer Beispieldatensatz. Das textfreie Poster wurde eigens für die fiktive Serie erzeugt und liegt unter `public/images/nordlicht-poster.png`; die vier lokalen Episoden demonstrieren dieselbe 1:n-Beziehung wie die importierten TVmaze-Daten.
 
 ## Datenbankstruktur
 

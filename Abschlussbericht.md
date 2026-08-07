@@ -183,6 +183,7 @@ Erfolgreich getestet wurden:
 
 - PHP-Syntax aller acht PHP-Dateien
 - TVmaze-Live-Import von 12 Serien und 1.081 Episoden
+- reproduzierbare Ergänzung von „Nordlicht“ mit lokalem Poster und 4 Episoden
 - wiederholbarer Setup-Lauf ohne Duplikate oder Deprecation-Warnings
 - 36 importierte Serien-Genre-Beziehungen
 - `PRAGMA foreign_key_check` ohne Fehler
@@ -198,14 +199,16 @@ Erfolgreich getestet wurden:
 - Array statt erwartetem Titel ohne PHP-Warning
 - gültiger POST mit HTTP 303 auf die dynamische ID `/serien/13`
 - Detailseite der lokal angelegten deutschen Beispielserie „Nordlicht“
+- vollständige Posteranzeige mit `object-fit: contain` in der Serienübersicht
+- getrennte, begrenzte Poster- und Textspalten auf der Detailseite
 - Refresh der Detailseite ohne zweiten INSERT
 - Serverprotokoll ohne Warnings, Fatals oder ungefangene Exceptions
 
-Nach dem Formular-Test enthielt die lokale Testdatenbank 13 Serien, 1.081 Episoden, 13 Genres und 37 Genre-Beziehungen. Ein frischer Setup-Lauf beginnt mit zwölf API-Serien; lokale Einträge werden nicht durch das Setup gelöscht.
+Nach dem aktuellen Setup enthält die lokale Testdatenbank 13 Serien, 1.085 Episoden, 13 Genres und 37 Genre-Beziehungen. Darin enthalten sind zwölf TVmaze-Serien und die lokale Beispielserie „Nordlicht“ mit vier Episoden. Weitere lokale Einträge werden durch das Setup nicht gelöscht.
 
 ## 19. Bekannte offene Punkte
 
-- Ein echter Screenshot fehlt, weil die installierte In-App-Browser-Verbindung in der Testumgebung mit „No browser is available“ antwortete.
+- Ein automatisierter Nachher-Screenshot fehlt, weil die installierte In-App-Browser-Verbindung in der Testumgebung keine verfügbaren Browser meldete. Die vom Benutzer bereitgestellten Vorher-Screenshots dienten als Fehlerreferenz.
 - Die TVmaze-Beschreibungen sind überwiegend Englisch. Sie sind verständlicher als die vorherigen Blindtexte, werden aber nicht automatisch ins Deutsche übersetzt.
 - `WARMUP.md` bleibt absichtlich unbeantwortet, damit die Lernfragen selbst bearbeitet werden können.
 
@@ -218,9 +221,11 @@ Your branch is up to date with 'origin/main'.
 nothing to commit, working tree clean
 ```
 
-## 21. Commit-Verlauf vor dem Berichtscommit
+## 21. Commit-Verlauf vor diesem Dokumentationsupdate
 
 ```text
+b6bb512 Polish poster layouts and Nordlicht demo
+387e6d4 Add final series report
 78402df Update documentation for series project
 43a14c8 Adapt routes and interface for series
 d555aa1 Switch data import to TVmaze
