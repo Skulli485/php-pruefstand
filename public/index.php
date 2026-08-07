@@ -22,6 +22,7 @@ try {
     $routes = [
         ['method' => 'GET', 'path' => '/', 'handler' => fn(array $_parameters) => show_home($pdo)],
         ['method' => 'GET', 'path' => '/beitraege', 'handler' => fn(array $_parameters) => show_posts($pdo)],
+        ['method' => 'GET', 'path' => '/resonanz', 'handler' => fn(array $_parameters) => show_resonance($pdo)],
         ['method' => 'GET', 'path' => '/beitraege/{id}', 'handler' => fn(array $parameters) => show_post($pdo, $parameters)],
         ['method' => 'GET', 'path' => '/autoren/{id}', 'handler' => fn(array $parameters) => show_author($pdo, $parameters)],
     ];

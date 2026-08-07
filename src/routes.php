@@ -9,6 +9,7 @@ function show_home(PDO $pdo): void
 {
     $authorCount = execute_statement($pdo, 'SELECT COUNT(*) FROM authors')->fetchColumn();
     $postCount = execute_statement($pdo, 'SELECT COUNT(*) FROM posts')->fetchColumn();
+    $commentCount = execute_statement($pdo, 'SELECT COUNT(*) FROM comments')->fetchColumn();
 
     page_start('Übersicht', '/');
     ?>
@@ -31,8 +32,8 @@ function show_home(PDO $pdo): void
             <span>Beiträge</span>
         </div>
         <div>
-            <strong>1</strong>
-            <span>externe Quelle</span>
+            <strong><?= (int) $commentCount ?></strong>
+            <span>Kommentare</span>
         </div>
     </section>
     <?php
@@ -94,6 +95,66 @@ function show_posts(PDO $pdo): void
             <?php endforeach; ?>
         </ol>
     <?php endif; ?>
+    <?php
+    page_end();
+}
+
+function show_resonance(PDO $pdo): void
+{
+    $posts = execute_statement(
+        $pdo,
+        'SELECT p.id, p.title, a.name AS author_name,
+            COUNT(c.id) AS comment_count
+        FROM posts p
+        JOIN authors a ON a.id = p.author_id
+        LEFT JOIN comments c ON c.post_id = p.id
+        GROUP BY p.id, p.title, a.name
+        ORDER BY comment_count DESC, p.id ASC'
+    )->fetchAll();
+
+    $commentCount = array_sum(
+        array_map(
+            fn(array $post): int => (int) $post['comment_count'],
+            $posts
+        )
+    );
+
+    page_start('Resonanz', '/resonanz');
+    ?>
+    <section class="analysis-heading">
+        <h1>Resonanz der Beiträge</h1>
+        <p>
+            <?= count($posts) ?> Beiträge und <?= $commentCount ?> Kommentare,
+            gemeinsam ausgewertet über einen SQL-JOIN.
+        </p>
+    </section>
+
+    <div class="table-scroll">
+        <table class="analysis-table">
+            <thead>
+                <tr>
+                    <th scope="col">Beitrag</th>
+                    <th scope="col">Autor</th>
+                    <th scope="col">Kommentare</th>
+                    <th scope="col">Detail</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($posts as $post): ?>
+                    <tr>
+                        <td><?= e($post['title']) ?></td>
+                        <td><?= e($post['author_name']) ?></td>
+                        <td class="number-cell"><?= (int) $post['comment_count'] ?></td>
+                        <td>
+                            <a class="text-link" href="/beitraege/<?= (int) $post['id'] ?>">
+                                Beitrag ansehen
+                            </a>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
     <?php
     page_end();
 }

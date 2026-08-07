@@ -283,6 +283,49 @@ select {
     max-width: 65rem;
 }
 
+.analysis-heading p {
+    max-width: 52rem;
+    color: var(--muted);
+    font-family: var(--mono);
+}
+
+.table-scroll {
+    margin-top: 3rem;
+    overflow-x: auto;
+}
+
+.analysis-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.analysis-table th,
+.analysis-table td {
+    padding: 1rem;
+    border-bottom: 1px solid var(--line-soft);
+    text-align: left;
+    vertical-align: top;
+}
+
+.analysis-table th {
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: .8rem;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+.analysis-table tbody tr:hover {
+    background: var(--surface);
+}
+
+.number-cell {
+    color: var(--accent);
+    font-family: var(--condensed);
+    font-size: 1.5rem;
+    font-weight: 800;
+}
+
 .post-body {
     max-width: 58rem;
     padding-block: 2rem;
