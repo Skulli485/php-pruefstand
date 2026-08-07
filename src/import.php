@@ -109,3 +109,77 @@ function import_initial_data(PDO $pdo): array
         'skipped' => $skippedRows,
     ];
 }
+
+function import_comments(PDO $pdo): array
+{
+    $comments = api_get('/comments');
+
+    $postIdsStatement = $pdo->prepare(
+        'SELECT id, external_id FROM posts WHERE external_id IS NOT NULL'
+    );
+    $postIdsStatement->execute();
+    $postIds = [];
+
+    foreach ($postIdsStatement->fetchAll() as $row) {
+        $postIds[(int) $row['external_id']] = (int) $row['id'];
+    }
+
+    $commentStatement = $pdo->prepare(
+        'INSERT INTO comments (external_id, post_id, name, email, body)
+        VALUES (:external_id, :post_id, :name, :email, :body)
+        ON CONFLICT(external_id) DO UPDATE SET
+            post_id = excluded.post_id,
+            name = excluded.name,
+            email = excluded.email,
+            body = excluded.body'
+    );
+
+    $importedComments = 0;
+    $skippedComments = 0;
+
+    $pdo->beginTransaction();
+
+    try {
+        foreach ($comments as $comment) {
+            $externalId = filter_var($comment['id'] ?? null, FILTER_VALIDATE_INT);
+            $externalPostId = filter_var($comment['postId'] ?? null, FILTER_VALIDATE_INT);
+            $name = trim((string) ($comment['name'] ?? ''));
+            $email = trim((string) ($comment['email'] ?? ''));
+            $body = trim((string) ($comment['body'] ?? ''));
+
+            if (
+                $externalId === false
+                || $externalPostId === false
+                || !isset($postIds[$externalPostId])
+                || $name === ''
+                || $email === ''
+                || $body === ''
+            ) {
+                $skippedComments++;
+                continue;
+            }
+
+            $commentStatement->execute([
+                'external_id' => $externalId,
+                'post_id' => $postIds[$externalPostId],
+                'name' => $name,
+                'email' => $email,
+                'body' => $body,
+            ]);
+            $importedComments++;
+        }
+
+        $pdo->commit();
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        throw $error;
+    }
+
+    return [
+        'comments' => $importedComments,
+        'skipped' => $skippedComments,
+    ];
+}

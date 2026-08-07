@@ -58,3 +58,18 @@ function create_initial_schema(PDO $pdo): void
         )'
     );
 }
+
+function create_comments_schema(PDO $pdo): void
+{
+    execute_statement(
+        $pdo,
+        'CREATE TABLE IF NOT EXISTS comments (
+            id INTEGER PRIMARY KEY,
+            external_id INTEGER NOT NULL UNIQUE,
+            post_id INTEGER NOT NULL REFERENCES posts(id),
+            name TEXT NOT NULL,
+            email TEXT NOT NULL,
+            body TEXT NOT NULL
+        )'
+    );
+}
