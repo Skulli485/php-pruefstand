@@ -1,34 +1,29 @@
-# Redaktionsprüfstand
+# Serienprüfstand
 
-Der Redaktionsprüfstand ist ein vollständiges PHP-Lernprojekt ohne Framework. Die Anwendung importiert Autoren, Beiträge und Kommentare aus JSONPlaceholder, speichert sie lokal in SQLite, wertet Beziehungen mit SQL-JOINs aus und erlaubt das sichere Anlegen eigener Beiträge.
+Der Serienprüfstand ist ein vollständiges PHP-Lernprojekt ohne Framework. Die Anwendung importiert echte Serien und Episoden von TVmaze, speichert sie in SQLite, wertet Beziehungen mit SQL-JOINs aus und erlaubt das sichere Anlegen eigener Serien.
 
-Umgesetzt sind alle Aufgabenstufen von Bronze über Silber und Gold bis einschließlich Diamant.
+Umgesetzt sind alle Aufgabenstufen von Bronze über Silber und Gold bis Diamant.
 
 ## Technologien
 
-- PHP 8.5
-- PDO mit SQLite
+- PHP 8.5 mit cURL und PDO-SQLite
 - eigener Router und Front Controller
-- HTML5
-- eigenes responsives CSS ohne Framework
-- Prepared Statements
-- GET und POST
-- Transaktionen und Foreign Keys
+- HTML5 und responsives CSS ohne Framework
+- Prepared Statements, Transaktionen und Foreign Keys
+- GET, POST und POST → Redirect → GET
 - 1:n- und n:m-Beziehungen
-- JSONPlaceholder als externe Datenquelle
+- [TVmaze](https://www.tvmaze.com/api) als externe JSON-Datenquelle
 
 ## Voraussetzungen
 
 - PHP 8.5.x
-- PDO-Treiber `sqlite`
+- PHP-Erweiterungen `curl`, `pdo` und `pdo_sqlite`
 - Internetzugriff für den Datenimport
 - Git zum Klonen des Repositories
 
-PHP und die verfügbaren PDO-Treiber lassen sich so prüfen:
-
 ```powershell
 php -v
-php -r "echo implode(', ', PDO::getAvailableDrivers()), PHP_EOL;"
+php -m
 ```
 
 ## Installation und Start
@@ -42,124 +37,99 @@ php -S localhost:8000 -t public public/index.php
 
 Danach ist die Anwendung unter <http://localhost:8000> erreichbar.
 
-`php scripts/setup.php` legt das Schema an, importiert die API-Daten und ergänzt die lokalen Beispiel-Schlagwörter. Der Befehl kann wiederholt werden: `UNIQUE`-Regeln und Upserts verhindern doppelte externe Datensätze, der zusammengesetzte Primärschlüssel verhindert doppelte Schlagwort-Beziehungen.
+`php scripts/setup.php` legt die Tabellen an, importiert zwölf englisch- oder deutschsprachige Serien und lädt deren Episoden. Der Befehl ist wiederholbar: Eindeutige externe IDs und Upserts verhindern doppelte API-Datensätze. Lokal angelegte Serien bleiben erhalten.
 
 ## Aufgabenstufen
 
 ### Bronze – vorzeigbar und sicher
 
-- Projekt-README mit Startanleitung, Routen und Datenbankbeschreibung
-- eigener Front Controller unter `public/index.php`
-- methodenfähiger Router mit dynamischen `{id}`-Segmenten
+- eigener Front Controller in `public/index.php`
+- Router mit HTTP-Methoden und dynamischen `{id}`-Segmenten
 - vollständiger [Prepared-Statement-Audit](docs/SQL-AUDIT.md)
-- HTML-Escaping über die Hilfsfunktion `e()`
-- verständliche 404-, 405-, 422- und 500-Seiten beziehungsweise Fehlerzustände
+- HTML-Escaping über `e()`
+- verständliche 404-, 405-, 422- und 500-Zustände
 
 ### Silber – zweite Quelle und 1:n
 
-- `/comments` als zweiter JSONPlaceholder-Endpoint
-- eigene Tabelle `comments` mit eindeutiger externer ID
-- Fremdschlüssel `comments.post_id`
-- Route `/resonanz` mit JOIN-Auswertung über Beiträge und Kommentare
-
-Die 1:n-Beziehung lautet:
+Serien stammen aus `/shows?page=0`. Die Episoden jeder importierten Serie kommen zusätzlich aus `/shows/{id}/episodes`.
 
 ```text
-posts
+shows
   id (Primary Key)
    │
-   └── 1:n ── comments
-                post_id (Foreign Key → posts.id)
+   └── 1:n ── episodes
+                show_id (Foreign Key → shows.id)
 ```
 
-Ein Beitrag kann viele Kommentare besitzen. Jeder Kommentar gehört genau zu einem Beitrag, deshalb liegt der Fremdschlüssel auf der n-Seite in `comments`.
+Eine Serie kann viele Episoden besitzen. Jede Episode gehört genau zu einer Serie, deshalb liegt `show_id` in `episodes` auf der n-Seite. `/episoden` zeigt die gemeinsame JOIN-Auswertung.
 
 ### Gold – echte n:m-Beziehung
 
-- lokale Schlagwörter in `tags`
-- Zwischentabelle `post_tag`
-- zwei Foreign Keys
-- zusammengesetzter Primärschlüssel `(post_id, tag_id)`
-- Anzeige aller Schlagwörter auf `/beitraege/{id}` über einen JOIN
-
-Die n:m-Beziehung lautet:
+TVmaze liefert für eine Serie mehrere Genres. Dasselbe Genre kann zu mehreren Serien gehören.
 
 ```text
-posts
+shows
   id (Primary Key)
    │
-   └── post_tag
-         post_id (Foreign Key → posts.id)
-         tag_id  (Foreign Key → tags.id)
-         Primary Key (post_id, tag_id)
-                   │
-                   └── tags
-                         id (Primary Key)
+   └── show_genre
+         show_id  (Foreign Key → shows.id)
+         genre_id (Foreign Key → genres.id)
+         Primary Key (show_id, genre_id)
+                    │
+                    └── genres
+                          id (Primary Key)
 ```
 
-Ein Beitrag kann mehrere Schlagwörter haben, und ein Schlagwort kann vielen Beiträgen zugeordnet sein. `post_tag` speichert jedes gültige Paar genau einmal.
+Die Zwischentabelle `show_genre` speichert jedes Serien-Genre-Paar höchstens einmal. Die Detailroute `/serien/{id}` lädt alle Genres über einen JOIN.
 
 ### Diamant – Eingabe
 
-- GET-Formular unter `/beitraege/neu`
+- GET-Formular unter `/serien/neu`
 - POST-Verarbeitung auf derselben Route
-- serverseitige Prüfung von Autor, Titel, Inhalt und Schlagwörtern
-- verständliche Fehler mit erhaltenen und escaped Eingaben
-- Prepared INSERTs für Beitrag und Schlagwort-Paare
-- gemeinsame Transaktion
+- serverseitige Prüfung aller Werte und Genre-IDs
+- erhaltene und escaped Eingaben bei Fehlern
+- Prepared INSERTs und gemeinsame Transaktion
 - neue ID über `lastInsertId()`
-- POST → Redirect → GET mit HTTP 303
+- HTTP 303 auf `/serien/{id}`
 
 ## Externe Datenquelle
 
-Die Daten kommen von [JSONPlaceholder](https://jsonplaceholder.typicode.com/):
+Die öffentliche API stammt von [TVmaze](https://www.tvmaze.com/api):
 
-| Endpoint | Gespeicherte Daten | Lokale Tabelle |
+| Endpoint | Gespeicherte Daten | Lokale Tabellen |
 | --- | --- | --- |
-| `/users` | Name, E-Mail, Stadt, Firma | `authors` |
-| `/posts` | Autorenzuordnung, Titel, Inhalt | `posts` |
-| `/comments` | Beitragszuordnung, Betreff, E-Mail, Inhalt | `comments` |
+| `/shows?page=0` | Titel, Sprache, Status, Premiere, Beschreibung, Poster, Genres | `shows`, `genres`, `show_genre` |
+| `/shows/{id}/episodes` | Titel, Staffel, Nummer, Datum, Laufzeit, Beschreibung | `episodes` |
 
-Beim Import werden nur benötigte Felder gespeichert. HTTP-Fehler, nicht erfolgreiche Statuscodes und ungültiges JSON werden kontrolliert behandelt. Jeder Import läuft in einer Transaktion.
+Die HTML-Fragmente in API-Beschreibungen werden beim Import entfernt. Gespeichert werden nur Klartext und geprüfte HTTPS-URLs. TVmaze wird im Footer und auf externen Detailseiten als Quelle verlinkt.
 
 ## Datenbankstruktur
 
-Die lokale Datei entsteht unter `data/pruefstand.sqlite` und wird nicht in Git eingecheckt. `PRAGMA foreign_keys = ON` wird für jede PDO-Verbindung aktiviert.
+Die aktive Datenbank entsteht unter `data/serienpruefstand.sqlite` und wird nicht in Git eingecheckt. `PRAGMA foreign_keys = ON` ist für jede Verbindung aktiv.
 
-### `authors`
-
-| Spalte | Regel |
-| --- | --- |
-| `id` | `INTEGER PRIMARY KEY` |
-| `external_id` | `UNIQUE` |
-| `name` | `NOT NULL` |
-| `email` | `NOT NULL` |
-| `city` | `NOT NULL` |
-| `company` | `NOT NULL` |
-
-### `posts`
+### `shows`
 
 | Spalte | Regel |
 | --- | --- |
 | `id` | `INTEGER PRIMARY KEY` |
-| `external_id` | `UNIQUE`, bei lokalen Beiträgen `NULL` |
-| `author_id` | `NOT NULL`, Foreign Key auf `authors.id` |
-| `title` | `NOT NULL` |
-| `body` | `NOT NULL` |
-| `created_at` | `NOT NULL`, Standardwert `CURRENT_TIMESTAMP` |
+| `external_id` | `UNIQUE`, für lokale Serien `NULL` |
+| `name`, `language`, `status`, `summary` | `NOT NULL` |
+| `premiered` | optionales Datum |
+| `image_url`, `source_url` | geprüfte externe URLs oder leer |
+| `created_at` | Standardwert `CURRENT_TIMESTAMP` |
 
-### `comments`
+### `episodes`
 
 | Spalte | Regel |
 | --- | --- |
 | `id` | `INTEGER PRIMARY KEY` |
 | `external_id` | `NOT NULL`, `UNIQUE` |
-| `post_id` | `NOT NULL`, Foreign Key auf `posts.id` |
+| `show_id` | `NOT NULL`, Foreign Key auf `shows.id` |
 | `name` | `NOT NULL` |
-| `email` | `NOT NULL` |
-| `body` | `NOT NULL` |
+| `season`, `number`, `airdate`, `runtime` | Episodenmetadaten |
+| `summary` | Klartextbeschreibung |
 
-### `tags`
+### `genres`
 
 | Spalte | Regel |
 | --- | --- |
@@ -167,12 +137,12 @@ Die lokale Datei entsteht unter `data/pruefstand.sqlite` und wird nicht in Git e
 | `name` | `NOT NULL`, `UNIQUE` |
 | `slug` | `NOT NULL`, `UNIQUE` |
 
-### `post_tag`
+### `show_genre`
 
 | Spalte | Regel |
 | --- | --- |
-| `post_id` | `NOT NULL`, Foreign Key auf `posts.id` |
-| `tag_id` | `NOT NULL`, Foreign Key auf `tags.id` |
+| `show_id` | Foreign Key auf `shows.id` |
+| `genre_id` | Foreign Key auf `genres.id` |
 | beide zusammen | zusammengesetzter Primary Key |
 
 ## Routen
@@ -180,93 +150,65 @@ Die lokale Datei entsteht unter `data/pruefstand.sqlite` und wird nicht in Git e
 | Methode | Route | Aufgabe | Status |
 | --- | --- | --- | --- |
 | GET | `/` | Übersicht und Datenbestand | 200 |
-| GET | `/beitraege` | Beitragsliste und Suche über `?q=` | 200 |
-| GET | `/beitraege/neu` | Eingabeformular | 200 |
-| POST | `/beitraege/neu` | validieren, speichern und umleiten | 303 oder 422 |
-| GET | `/beitraege/{id}` | Beitrag, Autor und Schlagwörter | 200 oder 404 |
-| GET | `/autoren/{id}` | Autor mit seinen Beiträgen | 200 oder 404 |
-| GET | `/resonanz` | 1:n-Auswertung Beiträge ↔ Kommentare | 200 |
+| GET | `/serien` | Serienliste und Suche über `?q=` | 200 |
+| GET | `/serien/neu` | Eingabeformular | 200 |
+| POST | `/serien/neu` | validieren, speichern und umleiten | 303 oder 422 |
+| GET | `/serien/{id}` | Serie, Genres und Episoden | 200 oder 404 |
+| GET | `/episoden` | 1:n-Auswertung Serien ↔ Episoden | 200 |
 
-Eine bekannte Route mit einer nicht unterstützten Methode antwortet mit HTTP 405 und einem passenden `Allow`-Header.
+Eine bekannte Route mit einer nicht unterstützten Methode antwortet mit HTTP 405 und einem `Allow`-Header.
 
 ## Serverseitige Validierung
 
-Beim Anlegen eines Beitrags prüft PHP:
+PHP prüft:
 
-- Autor ist ausgewählt und existiert.
-- Titel ist 5 bis 150 Zeichen lang.
-- Inhalt ist 20 bis 5000 Zeichen lang.
-- mindestens ein Schlagwort ist ausgewählt.
-- alle Schlagwort-IDs existieren.
-- erwartete Texte und IDs wurden nicht als ungeeignete Arrays übertragen.
+- Titel mit 2 bis 150 Zeichen
+- erlaubte Sprache und erlaubten Status
+- optionales Premierendatum im Format `YYYY-MM-DD`
+- Beschreibung mit 20 bis 5000 Zeichen
+- mindestens ein vorhandenes Genre
+- falsche Typen wie Arrays statt erwarteter Texte
 
-HTML-Attribute wie `required`, `minlength` und `maxlength` helfen im Browser. Entscheidend bleibt die erneute Prüfung auf dem Server, weil eine HTTP-Anfrage ohne das Formular gesendet werden kann.
-
-## POST → Redirect → GET
-
-Nach einem gültigen POST werden Beitrag und Schlagwort-Paare gespeichert. `lastInsertId()` liefert die neue Beitrags-ID. Der Server antwortet dann mit HTTP 303 und `Location: /beitraege/{id}`.
-
-Der Browser ruft anschließend die Detailseite per GET ab. Ein Refresh wiederholt deshalb das GET und legt keinen zweiten Beitrag an.
+HTML-Attribute helfen im Browser, ersetzen aber nicht die serverseitige Prüfung.
 
 ## Sicherheit
 
-- Jede SQL-Anweisung wird mit `prepare()` und `execute()` ausgeführt.
-- Variable Werte werden nie an SQL-Strings geklebt.
-- Die Suche bindet den vollständigen LIKE-Wert als Parameter.
-- IDs werden typisiert, auf Existenz geprüft und gebunden.
-- API-Import und Formularspeicherung nutzen Transaktionen.
-- Foreign Keys und UNIQUE-Regeln schützen die Datenbank zusätzlich.
-- API-, Datenbank- und Benutzerdaten werden vor HTML-Ausgabe mit `e()` escaped.
-- XSS-artige Eingaben werden als Text angezeigt, nicht ausgeführt.
-- SQL-artige Eingaben bleiben gewöhnliche Datenwerte.
-- Technische Exception-Details werden protokolliert und nicht im Browser ausgegeben.
-- `.env`, SQLite-Datei, IDE-Dateien und Logs sind von Git ausgeschlossen.
+- SQL läuft ausschließlich über `prepare()` und `execute()`.
+- GET-, POST-, API- und Routenwerte werden nie in SQL-Strings eingesetzt.
+- API-Import und Formularspeicherung verwenden Transaktionen.
+- Foreign Keys, UNIQUE-Regeln und zusammengesetzte Primärschlüssel schützen Beziehungen.
+- Alle dynamischen HTML-Ausgaben werden mit `e()` escaped oder kontrolliert als Integer ausgegeben.
+- API-Beschreibungen werden vor dem Speichern von HTML befreit.
+- Technische Exceptions werden protokolliert und nicht im Browser ausgegeben.
+- `.env`, SQLite-Dateien, IDE-Dateien und Logs sind von Git ausgeschlossen.
 
 ## Projektstruktur
 
 ```text
 php-pruefstand/
-├── data/                   # lokale SQLite-Datei (von Git ignoriert)
-├── docs/                   # Lern- und Aufgabendokumentation
+├── data/                   # lokale SQLite-Dateien, von Git ignoriert
+├── docs/                   # Aufgaben- und Sicherheitsdokumentation
 ├── public/
 │   ├── index.php           # Front Controller und Routentabelle
-│   └── styles.css          # eigene Farbwelt und responsives Layout
+│   └── styles.css          # responsives Serienlayout
 ├── scripts/
-│   └── setup.php           # Schema, API-Import und Beispieldaten
+│   └── setup.php           # Schema und TVmaze-Import
 ├── src/
-│   ├── api.php             # robuster API-Abruf
+│   ├── api.php             # cURL-basierter API-Abruf
 │   ├── database.php        # PDO-Verbindung und Schema
-│   ├── helpers.php         # Escaping, Layout und kleine Hilfsfunktionen
-│   ├── import.php          # API-Import und Schlagwort-Beziehungen
+│   ├── helpers.php         # Escaping und gemeinsames Layout
+│   ├── import.php          # Serien-, Episoden- und Genre-Import
 │   ├── router.php          # Methoden- und Pfadabgleich
 │   └── routes.php          # Abfragen, Validierung und HTML-Ausgabe
-├── .gitignore
+├── Abschlussbericht.md
 ├── README.md
 └── WARMUP.md
 ```
 
 ## Prüfungen
 
-Im Projektverlauf wurden unter anderem getestet:
-
-- PHP-Syntax aller Dateien
-- wiederholbarer Import ohne Duplikate
-- 200-, 303-, 404-, 405- und 422-Antworten
-- ungültige und fehlende IDs
-- leeres Formular, Pflichtfelder, Mindest- und Maximallängen
-- Array-Werte statt erwarteter Texte
-- Foreign-Key- und UNIQUE-Verletzungen
-- XSS-artige Eingaben
-- SQL-artige Eingaben
-- Redirect auf die dynamisch erzeugte ID
-- Refresh nach Redirect ohne zweiten INSERT
+Geprüft werden unter anderem PHP-Syntax, wiederholbarer Import, 200-/303-/404-/405-/422-Antworten, Suche, Detailansicht, ungültige IDs, Formulargrenzen, falsche Datentypen, XSS-artige und SQL-artige Eingaben sowie der Redirect auf die neu erzeugte ID.
 
 ## Screenshot
 
-**Platzhalter:** Ein echter Browser-Screenshot wird später unter `docs/screenshot.png` ergänzt. Während der automatischen Prüfung stand kein Browser-Backend zur Verfügung; deshalb enthält die README bewusst kein erfundenes Bild.
-
-Zum manuellen Ergänzen die Anwendung starten, im Browser öffnen, einen Screenshot als `docs/screenshot.png` speichern und anschließend diese Zeile hier einsetzen:
-
-```markdown
-![Beitragsliste im Redaktionsprüfstand](docs/screenshot.png)
-```
+Ein Browser-Screenshot wird ergänzt, sobald ein Browser-Backend verfügbar ist. Während der automatischen Prüfung war keine In-App-Browser-Verbindung vorhanden; deshalb enthält die Dokumentation kein erfundenes Bild.

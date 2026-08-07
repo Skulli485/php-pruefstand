@@ -1,18 +1,16 @@
 # Diamant 8.1 – Eingabeformular
 
-Die GET-Route `/beitraege/neu` zeigt ein Formular für einen neuen lokalen Beitrag.
+Die GET-Route `/serien/neu` zeigt ein Formular für eine neue lokale Serie.
 
 ## Felder
 
-- `author_id`: vorhandenen Autor auswählen
-- `title`: Pflichtfeld mit 5 bis 150 Zeichen
-- `body`: Pflichtfeld mit 20 bis 5000 Zeichen
-- `tag_ids[]`: ein oder mehrere vorhandene Schlagwörter auswählen
+- `name`: Titel mit 2 bis 150 Zeichen
+- `language`: erlaubte Sprache auswählen
+- `status`: erlaubten Serienstatus auswählen
+- `premiered`: optionales Datum
+- `summary`: Beschreibung mit 20 bis 5000 Zeichen
+- `genre_ids[]`: mindestens ein vorhandenes Genre
 
-Die Felder passen direkt zu den Tabellen `posts`, `authors`, `tags` und `post_tag`. Es gibt keine zusätzlichen Eingaben ohne fachlichen Zweck.
+Die Felder passen direkt zu `shows`, `genres` und `show_genre`. Genres werden per vorbereitetem SELECT geladen. Dynamische Werte werden escaped oder als geprüfte Integer ausgegeben.
 
-Autoren und Schlagwörter werden mit vorbereiteten SELECT-Anweisungen aus SQLite geladen. Jeder Wert aus der Datenbank wird vor der HTML-Ausgabe escaped oder als Integer ausgegeben.
-
-Die HTML-Attribute `required`, `minlength` und `maxlength` helfen beim Ausfüllen. Sie ersetzen nicht die serverseitige Prüfung, die in Diamant 8.2 folgt.
-
-Die Route steht in der Routentabelle vor `/beitraege/{id}`. Dadurch wird das feste Segment `neu` nicht irrtümlich als dynamische Beitrags-ID behandelt.
+Die feste Route steht vor `/serien/{id}`, damit `neu` nicht als dynamische ID behandelt wird. HTML-Regeln unterstützen die Eingabe; die verbindliche Prüfung erfolgt erneut auf dem Server.

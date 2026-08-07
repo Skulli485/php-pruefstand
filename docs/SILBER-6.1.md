@@ -2,35 +2,26 @@
 
 ## Auswahl
 
-Als zweite Quelle dient der JSONPlaceholder-Endpoint `/comments`. Autoren und Beiträge stammen bereits aus `/users` und `/posts`. Kommentare ergänzen das Redaktionsthema sinnvoll, weil sie Rückmeldungen zu genau diesen Beiträgen darstellen.
+Die Serien werden über den TVmaze-Endpoint `/shows?page=0` geladen. Als zweite Datenquelle dient für jede ausgewählte Serie `/shows/{id}/episodes`. Die Sprache der importierten Serien wird auf Englisch oder Deutsch begrenzt.
 
-Gespeichert werden nur die benötigten Felder:
+Gespeichert werden pro Episode:
 
-- `id` als externe ID zum Erkennen bereits importierter Kommentare
-- `postId` zur Zuordnung zum Beitrag
-- `name` als Betreff des Kommentars
-- `email` als Absenderadresse
-- `body` als Kommentartext
+- `id` als externe ID
+- die lokale Serien-ID als `show_id`
+- Titel, Staffel und Episodennummer
+- Ausstrahlungsdatum und Laufzeit
+- eine von HTML befreite Beschreibung
 
-## Tabelle `comments`
+## Tabelle `episodes`
 
 | Spalte | Bedeutung |
 | --- | --- |
 | `id` | lokaler `INTEGER PRIMARY KEY` |
 | `external_id` | API-ID, `NOT NULL` und `UNIQUE` |
-| `post_id` | Fremdschlüssel mit `REFERENCES posts(id)` |
-| `name` | Betreff, `NOT NULL` |
-| `email` | Absenderadresse, `NOT NULL` |
-| `body` | Kommentartext, `NOT NULL` |
+| `show_id` | Foreign Key auf `shows.id` |
+| `name` | Episodentitel, `NOT NULL` |
+| `season`, `number` | Position innerhalb der Serie |
+| `airdate`, `runtime` | optionale Metadaten |
+| `summary` | bereinigte Beschreibung |
 
-Der lokale Primärschlüssel gehört der eigenen Datenbank. `external_id` bleibt separat, damit API-ID und lokale Datenbank-ID nicht miteinander verwechselt werden. Die UNIQUE-Regel sorgt dafür, dass derselbe API-Kommentar nicht zweimal gespeichert wird. Beim wiederholten Import aktualisiert `ON CONFLICT(external_id)` den bestehenden Datensatz.
-
-`post_id` liegt in `comments`, weil jeder Kommentar genau zu einem Beitrag gehört. Der Wert verweist auf die lokale Beitrags-ID und nicht direkt auf die externe API-ID.
-
-## Fehlerbehandlung
-
-- HTTP-Statuscodes außerhalb von 200–299 führen zu einer verständlichen `RuntimeException`.
-- Ungültiges JSON wird abgelehnt.
-- Unvollständige Kommentarzeilen oder Kommentare ohne bekannten Beitrag werden übersprungen.
-- Der Import läuft in einer Transaktion und wird bei einem Fehler vollständig zurückgerollt.
-- Alle INSERT- und SELECT-Anweisungen werden vorbereitet; API-Werte werden als Parameter gebunden.
+Die externe Serien-ID wird beim Import auf die lokale `shows.id` abgebildet. Unvollständige Zeilen werden übersprungen. HTTP-Fehler und ungültiges JSON führen zu einer kontrollierten Exception. Alle Datenbankwerte werden an Prepared Statements gebunden.

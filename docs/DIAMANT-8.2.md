@@ -3,37 +3,31 @@
 ## Request-Ablauf
 
 ```text
-GET /beitraege/neu
+GET /serien/neu
   → Formular anzeigen
 
-POST /beitraege/neu
-  → $_POST lesen und trimmen
-  → serverseitig validieren
+POST /serien/neu
+  → Werte lesen und serverseitig validieren
   → bei Fehlern Formular mit HTTP 422 erneut anzeigen
-  → bei Erfolg Beitrag und Schlagwörter speichern
+  → bei Erfolg Serie und Genre-Paare speichern
   → lastInsertId() lesen
-  → HTTP 303 auf /beitraege/{neue-id}
+  → HTTP 303 auf /serien/{neue-id}
 
-GET /beitraege/{neue-id}
+GET /serien/{neue-id}
   → neue Detailseite anzeigen
 ```
 
-## Serverseitige Validierung
+## Validierung
 
-- `author_id` muss eine positive ID eines vorhandenen Autors sein.
-- `title` ist Pflicht und muss 5 bis 150 Zeichen lang sein.
-- `body` ist Pflicht und muss 20 bis 5000 Zeichen lang sein.
-- `tag_ids[]` muss mindestens eine vorhandene Schlagwort-ID enthalten.
-- Arrays oder andere ungeeignete Werte anstelle erwarteter Texte werden ohne PHP-Warning abgelehnt.
+- Titel: 2 bis 150 Zeichen
+- Sprache und Status: nur vorgegebene Werte
+- Premiere: leer oder echtes Datum im Format `YYYY-MM-DD`
+- Beschreibung: 20 bis 5000 Zeichen
+- Genres: mindestens eine vorhandene ID
+- Arrays statt erwarteter Texte: ohne PHP-Warning abweisen
 
-Bei Fehlern bleiben gültige Werte erhalten. Titel, Inhalt und alle anderen externen Werte werden beim erneuten Anzeigen mit `e()` escaped.
+Bei Fehlern bleiben gültige Werte erhalten und werden mit `e()` escaped.
 
-## Speichern
+## Speichern und Redirect
 
-Der INSERT in `posts` und alle INSERTs in `post_tag` laufen gemeinsam in einer Transaktion. Schlägt eine Beziehung fehl, wird auch der neue Beitrag zurückgerollt.
-
-Alle Werte werden an Prepared Statements gebunden. `lastInsertId()` liefert die wirklich neu erzeugte lokale Beitrags-ID.
-
-## POST → Redirect → GET
-
-Nach dem Speichern antwortet der Server mit HTTP 303 und einem `Location`-Header. Der Browser lädt danach die Detailseite per GET. Ein Refresh wiederholt deshalb nur das GET und legt keinen zweiten Beitrag an.
+Der INSERT in `shows` und alle INSERTs in `show_genre` laufen gemeinsam in einer Transaktion. `lastInsertId()` liefert die neue lokale Serien-ID. Anschließend antwortet der Server mit HTTP 303 und einem `Location`-Header. Ein Refresh wiederholt dadurch nur das GET und legt keinen zweiten Datensatz an.

@@ -2,32 +2,28 @@
 
 ## Beziehung
 
-`posts` ist die 1-Seite: Ein Beitrag existiert genau einmal. `comments` ist die n-Seite: Zu einem Beitrag können beliebig viele Kommentare gehören.
-
-Der Fremdschlüssel `comments.post_id` liegt in der n-Tabelle. Jede Kommentarzeile kann damit auf genau einen Beitrag zeigen, während dieselbe Beitrags-ID in vielen Kommentarzeilen vorkommen darf.
+`shows` ist die 1-Seite. `episodes` ist die n-Seite, weil zu einer Serie viele Episoden gehören können. Der Fremdschlüssel liegt deshalb in `episodes`.
 
 ```text
-posts
+shows
   id (Primary Key)
    │
-   └── 1:n ── comments
-                post_id (Foreign Key → posts.id)
+   └── 1:n ── episodes
+                show_id (Foreign Key → shows.id)
 ```
 
-## Route `/resonanz`
-
-Die Route wertet Beiträge, Autoren und Kommentare in einer Abfrage aus:
+## Route `/episoden`
 
 ```sql
-SELECT p.id, p.title, a.name AS author_name,
-    COUNT(c.id) AS comment_count
-FROM posts p
-JOIN authors a ON a.id = p.author_id
-LEFT JOIN comments c ON c.post_id = p.id
-GROUP BY p.id, p.title, a.name
-ORDER BY comment_count DESC, p.id ASC
+SELECT s.id, s.name, s.status,
+    COUNT(e.id) AS episode_count,
+    COUNT(DISTINCT e.season) AS season_count,
+    MIN(e.airdate) AS first_airdate,
+    MAX(e.airdate) AS last_airdate
+FROM shows s
+LEFT JOIN episodes e ON e.show_id = s.id
+GROUP BY s.id, s.name, s.status
+ORDER BY episode_count DESC, s.name ASC
 ```
 
-`LEFT JOIN` startet bei `posts` und verbindet alle passenden Kommentare über `c.post_id = p.id`. Ein Beitrag erscheint dadurch auch dann, wenn er noch keinen Kommentar besitzt; die Zählung ergibt für ihn 0. Ein gewöhnlicher `JOIN` würde einen solchen Beitrag vollständig aus der Auswertung entfernen.
-
-`GROUP BY` bildet pro Beitrag eine Gruppe. `COUNT(c.id)` zählt nur vorhandene Kommentar-IDs innerhalb dieser Gruppe.
+Der `LEFT JOIN` zeigt auch lokal angelegte Serien ohne Episode. `GROUP BY` bildet pro Serie eine Gruppe; `COUNT(e.id)` zählt deren Episoden und ergibt ohne Treffer 0.
