@@ -2,39 +2,41 @@
 
 declare(strict_types=1);
 
-const API_BASE_URL = 'https://jsonplaceholder.typicode.com';
+const API_BASE_URL = 'https://api.tvmaze.com';
 
 function api_get(string $path): array
 {
-    $context = stream_context_create([
-        'http' => [
-            'method' => 'GET',
-            'timeout' => 15,
-            'ignore_errors' => true,
-            'header' => "Accept: application/json\r\nUser-Agent: php-pruefstand/1.0\r\n",
-        ],
-    ]);
-
-    $rawResponse = @file_get_contents(API_BASE_URL . $path, false, $context);
-    $statusCode = 0;
-
-    foreach ($http_response_header ?? [] as $headerLine) {
-        if (preg_match('/^HTTP\/\S+\s+(\d{3})/', $headerLine, $matches) === 1) {
-            $statusCode = (int) $matches[1];
-            break;
-        }
+    if (!function_exists('curl_init')) {
+        throw new RuntimeException('Die PHP-cURL-Erweiterung fehlt.');
     }
 
-    if ($rawResponse === false || $statusCode < 200 || $statusCode >= 300) {
+    $handle = curl_init(API_BASE_URL . $path);
+
+    if ($handle === false) {
+        throw new RuntimeException('Der TVmaze-Abruf konnte nicht vorbereitet werden.');
+    }
+
+    curl_setopt_array($handle, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_TIMEOUT => 20,
+        CURLOPT_HTTPHEADER => ['Accept: application/json'],
+        CURLOPT_USERAGENT => 'serienpruefstand/1.0',
+    ]);
+
+    $rawResponse = curl_exec($handle);
+    $statusCode = (int) curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
+
+    if (!is_string($rawResponse) || $statusCode < 200 || $statusCode >= 300) {
         throw new RuntimeException(
-            'Die externe Datenquelle ist derzeit nicht erreichbar (HTTP ' . $statusCode . ').'
+            'TVmaze ist derzeit nicht erreichbar (HTTP ' . $statusCode . ').'
         );
     }
 
     $data = json_decode($rawResponse, true);
 
     if (!is_array($data) || json_last_error() !== JSON_ERROR_NONE) {
-        throw new RuntimeException('Die externe Datenquelle hat kein gültiges JSON geliefert.');
+        throw new RuntimeException('TVmaze hat kein gültiges JSON geliefert.');
     }
 
     return $data;

@@ -7,20 +7,15 @@ require_once __DIR__ . '/../src/import.php';
 
 try {
     $pdo = database();
-    create_initial_schema($pdo);
-    create_comments_schema($pdo);
-    create_tags_schema($pdo);
-    $initialResult = import_initial_data($pdo);
-    $commentsResult = import_comments($pdo);
-    $tagsResult = seed_post_tags($pdo);
+    create_schema($pdo);
+    $showResult = import_shows($pdo);
+    $episodeResult = import_episodes($pdo, $showResult['show_ids']);
 
-    echo 'Datenbank eingerichtet.' . PHP_EOL;
-    echo 'Autoren importiert: ' . $initialResult['authors'] . PHP_EOL;
-    echo 'Beiträge importiert: ' . $initialResult['posts'] . PHP_EOL;
-    echo 'Kommentare importiert: ' . $commentsResult['comments'] . PHP_EOL;
-    echo 'Schlagwörter vorhanden: ' . $tagsResult['tags'] . PHP_EOL;
-    echo 'Neue Schlagwort-Beziehungen: ' . $tagsResult['relations_created'] . PHP_EOL;
-    echo 'Übersprungen: ' . ($initialResult['skipped'] + $commentsResult['skipped']) . PHP_EOL;
+    echo 'Seriendatenbank eingerichtet.' . PHP_EOL;
+    echo 'Serien importiert: ' . $showResult['shows'] . PHP_EOL;
+    echo 'Genres verknüpft: ' . $showResult['genre_relations'] . PHP_EOL;
+    echo 'Episoden importiert: ' . $episodeResult['episodes'] . PHP_EOL;
+    echo 'Übersprungen: ' . ($showResult['skipped'] + $episodeResult['skipped']) . PHP_EOL;
 } catch (Throwable $error) {
     fwrite(STDERR, 'Einrichtung fehlgeschlagen: ' . $error->getMessage() . PHP_EOL);
     exit(1);

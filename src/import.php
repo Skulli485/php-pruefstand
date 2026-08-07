@@ -5,253 +5,174 @@ declare(strict_types=1);
 require_once __DIR__ . '/api.php';
 require_once __DIR__ . '/database.php';
 
-function import_initial_data(PDO $pdo): array
+const IMPORT_SHOW_LIMIT = 12;
+
+function api_text(mixed $value, string $fallback = ''): string
 {
-    $authors = api_get('/users');
-    $posts = api_get('/posts');
-
-    $authorStatement = $pdo->prepare(
-        'INSERT INTO authors (external_id, name, email, city, company)
-        VALUES (:external_id, :name, :email, :city, :company)
-        ON CONFLICT(external_id) DO UPDATE SET
-            name = excluded.name,
-            email = excluded.email,
-            city = excluded.city,
-            company = excluded.company'
-    );
-
-    $postStatement = $pdo->prepare(
-        'INSERT INTO posts (external_id, author_id, title, body)
-        VALUES (:external_id, :author_id, :title, :body)
-        ON CONFLICT(external_id) DO UPDATE SET
-            author_id = excluded.author_id,
-            title = excluded.title,
-            body = excluded.body'
-    );
-
-    $importedAuthors = 0;
-    $importedPosts = 0;
-    $skippedRows = 0;
-
-    $pdo->beginTransaction();
-
-    try {
-        foreach ($authors as $author) {
-            $externalId = filter_var($author['id'] ?? null, FILTER_VALIDATE_INT);
-            $name = trim((string) ($author['name'] ?? ''));
-            $email = trim((string) ($author['email'] ?? ''));
-            $city = trim((string) ($author['address']['city'] ?? ''));
-            $company = trim((string) ($author['company']['name'] ?? ''));
-
-            if ($externalId === false || $externalId < 1 || $name === '' || $email === '') {
-                $skippedRows++;
-                continue;
-            }
-
-            $authorStatement->execute([
-                'external_id' => $externalId,
-                'name' => $name,
-                'email' => $email,
-                'city' => $city,
-                'company' => $company,
-            ]);
-            $importedAuthors++;
-        }
-
-        $authorIdsStatement = $pdo->prepare(
-            'SELECT id, external_id FROM authors WHERE external_id IS NOT NULL'
-        );
-        $authorIdsStatement->execute();
-        $authorIds = [];
-
-        foreach ($authorIdsStatement->fetchAll() as $row) {
-            $authorIds[(int) $row['external_id']] = (int) $row['id'];
-        }
-
-        foreach ($posts as $post) {
-            $externalId = filter_var($post['id'] ?? null, FILTER_VALIDATE_INT);
-            $externalAuthorId = filter_var($post['userId'] ?? null, FILTER_VALIDATE_INT);
-            $title = trim((string) ($post['title'] ?? ''));
-            $body = trim((string) ($post['body'] ?? ''));
-
-            if (
-                $externalId === false
-                || $externalAuthorId === false
-                || !isset($authorIds[$externalAuthorId])
-                || $title === ''
-                || $body === ''
-            ) {
-                $skippedRows++;
-                continue;
-            }
-
-            $postStatement->execute([
-                'external_id' => $externalId,
-                'author_id' => $authorIds[$externalAuthorId],
-                'title' => $title,
-                'body' => $body,
-            ]);
-            $importedPosts++;
-        }
-
-        $pdo->commit();
-    } catch (Throwable $error) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
-
-        throw $error;
+    if (!is_string($value)) {
+        return $fallback;
     }
 
-    return [
-        'authors' => $importedAuthors,
-        'posts' => $importedPosts,
-        'skipped' => $skippedRows,
-    ];
+    $text = html_entity_decode(strip_tags($value), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $text = preg_replace('/\s+/u', ' ', $text);
+
+    return trim(is_string($text) ? $text : $fallback) ?: $fallback;
 }
 
-function import_comments(PDO $pdo): array
+function genre_slug(string $name): string
 {
-    $comments = api_get('/comments');
+    $slug = mb_strtolower($name);
+    $slug = preg_replace('/[^a-z0-9]+/u', '-', $slug);
+    $slug = trim(is_string($slug) ? $slug : '', '-');
 
-    $postIdsStatement = $pdo->prepare(
-        'SELECT id, external_id FROM posts WHERE external_id IS NOT NULL'
-    );
-    $postIdsStatement->execute();
-    $postIds = [];
-
-    foreach ($postIdsStatement->fetchAll() as $row) {
-        $postIds[(int) $row['external_id']] = (int) $row['id'];
-    }
-
-    $commentStatement = $pdo->prepare(
-        'INSERT INTO comments (external_id, post_id, name, email, body)
-        VALUES (:external_id, :post_id, :name, :email, :body)
-        ON CONFLICT(external_id) DO UPDATE SET
-            post_id = excluded.post_id,
-            name = excluded.name,
-            email = excluded.email,
-            body = excluded.body'
-    );
-
-    $importedComments = 0;
-    $skippedComments = 0;
-
-    $pdo->beginTransaction();
-
-    try {
-        foreach ($comments as $comment) {
-            $externalId = filter_var($comment['id'] ?? null, FILTER_VALIDATE_INT);
-            $externalPostId = filter_var($comment['postId'] ?? null, FILTER_VALIDATE_INT);
-            $name = trim((string) ($comment['name'] ?? ''));
-            $email = trim((string) ($comment['email'] ?? ''));
-            $body = trim((string) ($comment['body'] ?? ''));
-
-            if (
-                $externalId === false
-                || $externalPostId === false
-                || !isset($postIds[$externalPostId])
-                || $name === ''
-                || $email === ''
-                || $body === ''
-            ) {
-                $skippedComments++;
-                continue;
-            }
-
-            $commentStatement->execute([
-                'external_id' => $externalId,
-                'post_id' => $postIds[$externalPostId],
-                'name' => $name,
-                'email' => $email,
-                'body' => $body,
-            ]);
-            $importedComments++;
-        }
-
-        $pdo->commit();
-    } catch (Throwable $error) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
-
-        throw $error;
-    }
-
-    return [
-        'comments' => $importedComments,
-        'skipped' => $skippedComments,
-    ];
+    return $slug !== '' ? $slug : 'genre-' . substr(hash('sha256', $name), 0, 12);
 }
 
-function seed_post_tags(PDO $pdo): array
+function https_url(mixed $value): string
 {
-    $tagData = [
-        ['name' => 'PHP', 'slug' => 'php'],
-        ['name' => 'Datenbanken', 'slug' => 'datenbanken'],
-        ['name' => 'Sicherheit', 'slug' => 'sicherheit'],
-        ['name' => 'Routing', 'slug' => 'routing'],
-    ];
+    if (!is_string($value) || filter_var($value, FILTER_VALIDATE_URL) === false) {
+        return '';
+    }
 
-    $tagPlan = [
-        1 => ['PHP', 'Routing'],
-        2 => ['Datenbanken', 'Sicherheit'],
-        3 => ['PHP', 'Datenbanken'],
-        4 => ['Routing', 'Sicherheit'],
-        5 => ['PHP', 'Sicherheit', 'Routing'],
-    ];
+    return str_starts_with($value, 'https://') ? $value : '';
+}
 
-    $tagStatement = $pdo->prepare(
-        'INSERT INTO tags (name, slug)
+function valid_api_date(mixed $value): ?string
+{
+    if (!is_string($value) || preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) !== 1) {
+        return null;
+    }
+
+    return $value;
+}
+
+function nullable_positive_integer(mixed $value): ?int
+{
+    $number = filter_var($value, FILTER_VALIDATE_INT);
+
+    return $number !== false && $number > 0 ? $number : null;
+}
+
+function import_shows(PDO $pdo): array
+{
+    $apiShows = api_get('/shows?page=0');
+    $eligibleShows = array_values(array_filter(
+        $apiShows,
+        static function (mixed $show): bool {
+            if (!is_array($show)) {
+                return false;
+            }
+
+            $language = $show['language'] ?? null;
+
+            return in_array($language, ['English', 'German'], true)
+                && api_text($show['name'] ?? '') !== ''
+                && api_text($show['summary'] ?? '') !== '';
+        }
+    ));
+    $eligibleShows = array_slice($eligibleShows, 0, IMPORT_SHOW_LIMIT);
+
+    $showStatement = $pdo->prepare(
+        'INSERT INTO shows (
+            external_id, name, language, status, premiered, summary, image_url, source_url
+        ) VALUES (
+            :external_id, :name, :language, :status, :premiered, :summary, :image_url, :source_url
+        ) ON CONFLICT(external_id) DO UPDATE SET
+            name = excluded.name,
+            language = excluded.language,
+            status = excluded.status,
+            premiered = excluded.premiered,
+            summary = excluded.summary,
+            image_url = excluded.image_url,
+            source_url = excluded.source_url'
+    );
+    $showIdStatement = $pdo->prepare(
+        'SELECT id FROM shows WHERE external_id = :external_id'
+    );
+    $deleteGenresStatement = $pdo->prepare(
+        'DELETE FROM show_genre WHERE show_id = :show_id'
+    );
+    $genreStatement = $pdo->prepare(
+        'INSERT INTO genres (name, slug)
         VALUES (:name, :slug)
         ON CONFLICT(name) DO UPDATE SET slug = excluded.slug'
     );
-    $relationStatement = $pdo->prepare(
-        'INSERT OR IGNORE INTO post_tag (post_id, tag_id)
-        VALUES (:post_id, :tag_id)'
+    $genreIdStatement = $pdo->prepare(
+        'SELECT id FROM genres WHERE name = :name'
     );
+    $relationStatement = $pdo->prepare(
+        'INSERT OR IGNORE INTO show_genre (show_id, genre_id)
+        VALUES (:show_id, :genre_id)'
+    );
+
+    $importedShows = 0;
+    $genreRelations = 0;
+    $skippedRows = 0;
+    $showIds = [];
 
     $pdo->beginTransaction();
 
     try {
-        foreach ($tagData as $tag) {
-            $tagStatement->execute($tag);
-        }
+        foreach ($eligibleShows as $show) {
+            $externalId = filter_var($show['id'] ?? null, FILTER_VALIDATE_INT);
+            $name = api_text($show['name'] ?? '');
+            $language = api_text($show['language'] ?? '', 'Unbekannt');
+            $status = api_text($show['status'] ?? '', 'Unbekannt');
+            $summary = api_text($show['summary'] ?? '');
 
-        $tagRows = execute_statement($pdo, 'SELECT id, name FROM tags')->fetchAll();
-        $postRows = execute_statement(
-            $pdo,
-            'SELECT id, external_id FROM posts WHERE external_id IS NOT NULL'
-        )->fetchAll();
-        $tagIds = [];
-        $postIds = [];
-
-        foreach ($tagRows as $tag) {
-            $tagIds[(string) $tag['name']] = (int) $tag['id'];
-        }
-
-        foreach ($postRows as $post) {
-            $postIds[(int) $post['external_id']] = (int) $post['id'];
-        }
-
-        $relationCount = 0;
-
-        foreach ($tagPlan as $externalPostId => $tagNames) {
-            if (!isset($postIds[$externalPostId])) {
+            if ($externalId === false || $externalId < 1 || $name === '' || $summary === '') {
+                $skippedRows++;
                 continue;
             }
 
-            foreach ($tagNames as $tagName) {
-                if (!isset($tagIds[$tagName])) {
+            $showStatement->execute([
+                'external_id' => $externalId,
+                'name' => $name,
+                'language' => $language,
+                'status' => $status,
+                'premiered' => valid_api_date($show['premiered'] ?? null),
+                'summary' => $summary,
+                'image_url' => https_url($show['image']['medium'] ?? null),
+                'source_url' => https_url($show['url'] ?? null),
+            ]);
+
+            $showIdStatement->execute(['external_id' => $externalId]);
+            $showId = (int) $showIdStatement->fetchColumn();
+
+            if ($showId < 1) {
+                $skippedRows++;
+                continue;
+            }
+
+            $showIds[$externalId] = $showId;
+            $deleteGenresStatement->execute(['show_id' => $showId]);
+
+            foreach ($show['genres'] ?? [] as $genreName) {
+                $genreName = api_text($genreName);
+
+                if ($genreName === '') {
+                    continue;
+                }
+
+                $genreStatement->execute([
+                    'name' => $genreName,
+                    'slug' => genre_slug($genreName),
+                ]);
+                $genreIdStatement->execute(['name' => $genreName]);
+                $genreId = (int) $genreIdStatement->fetchColumn();
+
+                if ($genreId < 1) {
                     continue;
                 }
 
                 $relationStatement->execute([
-                    'post_id' => $postIds[$externalPostId],
-                    'tag_id' => $tagIds[$tagName],
+                    'show_id' => $showId,
+                    'genre_id' => $genreId,
                 ]);
-                $relationCount += $relationStatement->rowCount();
+                $genreRelations += $relationStatement->rowCount();
             }
+
+            $importedShows++;
         }
 
         $pdo->commit();
@@ -264,7 +185,77 @@ function seed_post_tags(PDO $pdo): array
     }
 
     return [
-        'tags' => count($tagData),
-        'relations_created' => $relationCount,
+        'shows' => $importedShows,
+        'genre_relations' => $genreRelations,
+        'skipped' => $skippedRows,
+        'show_ids' => $showIds,
+    ];
+}
+
+function import_episodes(PDO $pdo, array $showIds): array
+{
+    $episodeStatement = $pdo->prepare(
+        'INSERT INTO episodes (
+            external_id, show_id, name, season, number, airdate, runtime, summary
+        ) VALUES (
+            :external_id, :show_id, :name, :season, :number, :airdate, :runtime, :summary
+        ) ON CONFLICT(external_id) DO UPDATE SET
+            show_id = excluded.show_id,
+            name = excluded.name,
+            season = excluded.season,
+            number = excluded.number,
+            airdate = excluded.airdate,
+            runtime = excluded.runtime,
+            summary = excluded.summary'
+    );
+
+    $importedEpisodes = 0;
+    $skippedEpisodes = 0;
+
+    foreach ($showIds as $externalShowId => $localShowId) {
+        $episodes = api_get('/shows/' . (int) $externalShowId . '/episodes');
+        $pdo->beginTransaction();
+
+        try {
+            foreach ($episodes as $episode) {
+                if (!is_array($episode)) {
+                    $skippedEpisodes++;
+                    continue;
+                }
+
+                $externalId = filter_var($episode['id'] ?? null, FILTER_VALIDATE_INT);
+                $name = api_text($episode['name'] ?? '');
+
+                if ($externalId === false || $externalId < 1 || $name === '') {
+                    $skippedEpisodes++;
+                    continue;
+                }
+
+                $episodeStatement->execute([
+                    'external_id' => $externalId,
+                    'show_id' => (int) $localShowId,
+                    'name' => $name,
+                    'season' => nullable_positive_integer($episode['season'] ?? null),
+                    'number' => nullable_positive_integer($episode['number'] ?? null),
+                    'airdate' => valid_api_date($episode['airdate'] ?? null),
+                    'runtime' => nullable_positive_integer($episode['runtime'] ?? null),
+                    'summary' => api_text($episode['summary'] ?? ''),
+                ]);
+                $importedEpisodes++;
+            }
+
+            $pdo->commit();
+        } catch (Throwable $error) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+
+            throw $error;
+        }
+    }
+
+    return [
+        'episodes' => $importedEpisodes,
+        'skipped' => $skippedEpisodes,
     ];
 }

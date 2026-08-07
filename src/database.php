@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-const DATABASE_PATH = __DIR__ . '/../data/pruefstand.sqlite';
+const DATABASE_PATH = __DIR__ . '/../data/serienpruefstand.sqlite';
 
 function execute_statement(PDO $pdo, string $sql, array $parameters = []): PDOStatement
 {
@@ -11,6 +11,7 @@ function execute_statement(PDO $pdo, string $sql, array $parameters = []): PDOSt
 
     return $statement;
 }
+
 function database(): PDO
 {
     static $pdo = null;
@@ -32,53 +33,42 @@ function database(): PDO
     return $pdo;
 }
 
-function create_initial_schema(PDO $pdo): void
+function create_schema(PDO $pdo): void
 {
     execute_statement(
         $pdo,
-        'CREATE TABLE IF NOT EXISTS authors (
+        'CREATE TABLE IF NOT EXISTS shows (
             id INTEGER PRIMARY KEY,
             external_id INTEGER UNIQUE,
             name TEXT NOT NULL,
-            email TEXT NOT NULL,
-            city TEXT NOT NULL,
-            company TEXT NOT NULL
-        )'
-    );
-
-    execute_statement(
-        $pdo,
-        'CREATE TABLE IF NOT EXISTS posts (
-            id INTEGER PRIMARY KEY,
-            external_id INTEGER UNIQUE,
-            author_id INTEGER NOT NULL REFERENCES authors(id),
-            title TEXT NOT NULL,
-            body TEXT NOT NULL,
+            language TEXT NOT NULL,
+            status TEXT NOT NULL,
+            premiered TEXT,
+            summary TEXT NOT NULL,
+            image_url TEXT NOT NULL DEFAULT \'\',
+            source_url TEXT NOT NULL DEFAULT \'\',
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )'
     );
-}
 
-function create_comments_schema(PDO $pdo): void
-{
     execute_statement(
         $pdo,
-        'CREATE TABLE IF NOT EXISTS comments (
+        'CREATE TABLE IF NOT EXISTS episodes (
             id INTEGER PRIMARY KEY,
             external_id INTEGER NOT NULL UNIQUE,
-            post_id INTEGER NOT NULL REFERENCES posts(id),
+            show_id INTEGER NOT NULL REFERENCES shows(id) ON DELETE CASCADE,
             name TEXT NOT NULL,
-            email TEXT NOT NULL,
-            body TEXT NOT NULL
+            season INTEGER,
+            number INTEGER,
+            airdate TEXT,
+            runtime INTEGER,
+            summary TEXT NOT NULL DEFAULT \'\'
         )'
     );
-}
 
-function create_tags_schema(PDO $pdo): void
-{
     execute_statement(
         $pdo,
-        'CREATE TABLE IF NOT EXISTS tags (
+        'CREATE TABLE IF NOT EXISTS genres (
             id INTEGER PRIMARY KEY,
             name TEXT NOT NULL UNIQUE,
             slug TEXT NOT NULL UNIQUE
@@ -87,10 +77,19 @@ function create_tags_schema(PDO $pdo): void
 
     execute_statement(
         $pdo,
-        'CREATE TABLE IF NOT EXISTS post_tag (
-            post_id INTEGER NOT NULL REFERENCES posts(id),
-            tag_id INTEGER NOT NULL REFERENCES tags(id),
-            PRIMARY KEY (post_id, tag_id)
+        'CREATE TABLE IF NOT EXISTS show_genre (
+            show_id INTEGER NOT NULL REFERENCES shows(id) ON DELETE CASCADE,
+            genre_id INTEGER NOT NULL REFERENCES genres(id),
+            PRIMARY KEY (show_id, genre_id)
         )'
+    );
+
+    execute_statement(
+        $pdo,
+        'CREATE INDEX IF NOT EXISTS idx_episodes_show_id ON episodes(show_id)'
+    );
+    execute_statement(
+        $pdo,
+        'CREATE INDEX IF NOT EXISTS idx_show_genre_genre_id ON show_genre(genre_id)'
     );
 }
