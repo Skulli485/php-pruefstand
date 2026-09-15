@@ -1,5 +1,7 @@
 # Film- & Serienprüfstand
 
+**Live:** [php-pruefstand.vercel.app](https://php-pruefstand.vercel.app/) — die Produktionsdatenbank ist aktuell leer (frischer Neon-Postgres-Stand), Testdaten liegen lokal nur in SQLite. Serien/Filme lassen sich direkt über die Live-Seite importieren.
+
 Der Film- & Serienprüfstand ist ein vollständiges PHP-Lernprojekt ohne Framework. Die Anwendung verwaltet Serien und Filme in getrennten relationalen Tabellen derselben Datenbank. Serien werden über TVmaze samt Episoden importiert; Filme können manuell gespeichert oder über TMDB samt Poster, Laufzeit, Genres und deutschen Anbieterinformationen übernommen werden. Lokal speichert die App in SQLite, auf Vercel persistent in Postgres.
 
 Umgesetzt sind alle Aufgabenstufen von Bronze über Silber und Gold bis Diamant.
@@ -362,4 +364,4 @@ Formulargrenzen sowie XSS-artige und SQL-artige Eingaben.
 
 ## Screenshot
 
-Ein Browser-Screenshot wird ergänzt, sobald ein Browser-Backend verfügbar ist. Während der automatischen Prüfung war keine In-App-Browser-Verbindung vorhanden; deshalb enthält die Dokumentation kein erfundenes Bild.
+Ein Browser-Screenshot wird ergänzt, sobald ein Browser-Backend verfügbar ist. Während der automatischen Prüfung war keine In-App-Browser-Verbindung vorhanden; deshalb enthält die Dokumentation kein erfundenes Bild. Die Anwendung ist inzwischen aber live erreichbar (siehe Link oben) und kann direkt im Browser geprüft werden.
