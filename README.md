@@ -1,5 +1,7 @@
 # Film- & Serienprüfstand
 
+**Live:** [php-pruefstand.vercel.app](https://php-pruefstand.vercel.app/) — die Produktionsdatenbank ist aktuell leer (frischer Neon-Postgres-Stand), Testdaten liegen lokal nur in SQLite. Serien/Filme lassen sich direkt über die Live-Seite importieren.
+
 Der Film- & Serienprüfstand ist ein vollständiges PHP-Lernprojekt ohne Framework. Die Anwendung verwaltet Serien und Filme in getrennten relationalen Tabellen derselben Datenbank. Serien werden über TVmaze samt Episoden importiert; Filme können manuell gespeichert oder über TMDB samt Poster, Laufzeit, Genres und deutschen Anbieterinformationen übernommen werden. Lokal speichert die App in SQLite, auf Vercel persistent in Postgres.
 
 Umgesetzt sind alle Aufgabenstufen von Bronze über Silber und Gold bis Diamant.
@@ -67,7 +69,9 @@ als Fallback verwendet.
 1. Das GitHub-Repository in Vercel als neues Projekt importieren oder im verknüpften
    Projekt `vercel git connect` ausführen.
 2. Im Vercel Marketplace eine Postgres-Integration wie Neon mit dem Projekt verbinden.
-   Die Integration muss `DATABASE_URL` für Production und Preview setzen.
+   Die Integration muss `DATABASE_URL` setzen. Bei Neon bevorzugt die App automatisch
+   `DATABASE_URL_UNPOOLED`, damit auch ältere PHP-`libpq`-Versionen sicher verbinden
+   und das Schema ohne Pooler-Einschränkungen anlegen können.
 3. `TMDB_API_TOKEN`, `TMDB_API_READ_TOKEN` oder `TMDB_API_KEY` in den
    Vercel-Umgebungsvariablen für Production und Preview hinterlegen.
 4. Beim ersten Request prüft die Anwendung das Schema und legt fehlende Tabellen
@@ -360,4 +364,4 @@ Formulargrenzen sowie XSS-artige und SQL-artige Eingaben.
 
 ## Screenshot
 
-Ein Browser-Screenshot wird ergänzt, sobald ein Browser-Backend verfügbar ist. Während der automatischen Prüfung war keine In-App-Browser-Verbindung vorhanden; deshalb enthält die Dokumentation kein erfundenes Bild.
+Ein Browser-Screenshot wird ergänzt, sobald ein Browser-Backend verfügbar ist. Während der automatischen Prüfung war keine In-App-Browser-Verbindung vorhanden; deshalb enthält die Dokumentation kein erfundenes Bild. Die Anwendung ist inzwischen aber live erreichbar (siehe Link oben) und kann direkt im Browser geprüft werden.
